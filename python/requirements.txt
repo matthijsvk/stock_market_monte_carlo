@@ -1,0 +1,9 @@
+matplotlib
+seaborn
+pandas
+tables
+numpy
+fire
+natsort
+yfinance
+tqdm
