@@ -3,8 +3,12 @@
 ## Quickstart
 
 C++ side: simulations
-`mkdir build && cd build && cmake .. && make && cd ..`
-`./build/example_simulated`
+
+```
+sudo apt install libfmt-dev
+mkdir build && cd build && cmake .. && make && cd ..
+./build/example_simulated
+```
 
 Python side: visualization
 
@@ -15,7 +19,6 @@ pip install -r python/requirements.txt
 python python/plot_returns.py plot_many_returns --dir=output
 ```
 
-
 Using historical data
 
 ```
@@ -25,37 +28,43 @@ python python/get_data.py get_data_SP500
 python python/plot_returns.py plot_many_returns --dir=output
 ```
 
+## Overview
 
-## Markets
+The goal of this project is to estimate the likelihood distribution of future development of a stock portfolio.
+This could be used to decide how much to invest when saving for retirement.
 
-- monthly returns
+Perform Monte Carlo simulations where we sample monthly returns either from:
     1. Gaussian with mean/std
-    2. Sample from historical data
-        1. python python/get_data.py get_data_SP500
+    2. historical data (S&P500)
 
-## Implementation
+C++ code runs the MC simulations and writes each run to a CSV file.
+Python is used to get the S&P500 data, and for visualization.
 
-1. guassian monthly returns, calculate fund value after N periods
-2. monte carlo simulation of (1)
-3. use historical return data
-4. c++ executable with arguments
-5. withdrawal strategies
-    1. taking out fixed amount every period
-    2. taking out some percentage every period
-    3. taking out varying percentage every period
-6. Monte Carlo simulation on GPU
+Future goals: 
+    - GUI to visualize from C++ while simulations are running
+    - run simulations on GPU
+    - add withdrawal plans (verify '4% rule')
+
+### Implementation Steps
+
+- [x] gaussian monthly returns, calculate fund value after N periods
+- [x] monte carlo simulation of (1)
+- [x] use historical return data
+- [x] visualization of fund value and average returns
+- [ ] c++ executable with arguments to avoid need to recompile
+- [ ] GUI with imgui to see progress while simulating
+- [ ] likelihood of going broke + reaching some target amount
+- [ ] withdrawal strategies
+  - [ ] taking out fixed amount every period
+  - [ ] taking out some percentage every period
+  - [ ] taking out varying percentage every period
+- [ ] Monte Carlo simulation on GPU
 
 ## Visualization
 
 1. write to CSV file, then plot with python & matplotlib
     1. plot single simulation: `python python/plot_returns.py plot_returns --csv_file=output/gaussian_00001.csv`
     2. plot many simulations: `python python/plot_returns.py plot_many_returns --dir=output/`
+    3. single CSV for all simulations?
 2. write GUI using https://github.com/ocornut/imgui to display from C++
 3. dynamically update the GUI while simulations are running
-
-## Installation
-
-```
-sudo apt install libfmt-dev
-
-```
