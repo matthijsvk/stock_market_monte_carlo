@@ -7,7 +7,6 @@ PROJECT(
         LANGUAGES CXX
 )
 
-option(BUILD_BENCHMARK "Build ${CMAKE_PROJECT_NAME} example benchmark?" OFF)
 option(BUILD_EXAMPLES "Build ${CMAKE_PROJECT_NAME} example applications?" ON)
 
 
@@ -22,15 +21,6 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo")
 endif ()
 
-if (APPLE)
-    set(CMAKE_MACOSX_RPATH ON)
-endif ()
-
-if (MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_CRT_SECURE_NO_WARNINGS")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-endif ()
-
 include(FetchContent)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,25 +31,71 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # other libraries
 ###############################################################################
 
-FetchContent_Declare(fmt
-        GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-        GIT_TAG master
-        )
-FetchContent_Declare(csv
-        GIT_REPOSITORY https://github.com/ben-strasser/fast-cpp-csv-parser.git
-        GIT_TAG master
-        )
-FetchContent_MakeAvailable(fmt csv)
+FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG master)
+FetchContent_Declare(csv GIT_REPOSITORY https://github.com/ben-strasser/fast-cpp-csv-parser.git GIT_TAG master)
+FetchContent_MakeAvailable(
+        fmt
+        csv
+)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-include_directories("include")
+## GUI stuff: https://alandefreitas.github.io/moderncpp/guis/imgui/
+find_package(OpenGL)
+find_package(X11 REQUIRED)
+
+FetchContent_Declare(glad GIT_REPOSITORY https://github.com/Dav1dde/glad.git GIT_TAG master)
+FetchContent_MakeAvailable(glad)
+
+if (NOT TARGET glfw)
+    # Fetch GLFW
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG master)
+    FetchContent_MakeAvailable(glfw)
+    target_compile_options(glfw PRIVATE -Wno-pedantic -Wno-missing-field-initializers -Wno-unused-parameter)
+endif ()
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+
+# Fetch ImGUI
+FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.86)
+FetchContent_GetProperties(imgui)
+if (NOT imgui_POPULATED)
+    FetchContent_Populate(imgui)
+    set(IMGUI_INCLUDE_DIR ${imgui_SOURCE_DIR}/)
+    file(GLOB IMGUI_SOURCES ${imgui_SOURCE_DIR}/*.cpp)
+    file(GLOB IMGUI_HEADERS ${imgui_SOURCE_DIR}/*.h)
+    add_library(imgui STATIC ${IMGUI_SOURCES} ${IMGUI_SOURCES} ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
+    add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD)
+
+    # Link
+    target_include_directories(imgui PUBLIC ${IMGUI_INCLUDE_DIR} ${OPENGL_INCLUDE_DIR} ${GLFW_INCLUDE_DIR} ${GLAD_INCLUDE_DIR})
+    target_link_libraries(imgui ${OPENGL_LIBRARIES} glfw glad ${CMAKE_DL_LIBS})
+endif ()
+
+# ImPlot
+FetchContent_Declare(implot GIT_REPOSITORY https://github.com/epezent/implot.git GIT_TAG v0.13)
+FetchContent_GetProperties(implot)
+if (NOT implot_POPULATED)
+    FetchContent_Populate(implot)
+    file(GLOB implot_SOURCES ${implot_SOURCE_DIR}/*.cpp)
+    file(GLOB implot_HEADERS ${implot_SOURCE_DIR}/*.h)
+    add_library(implot ${implot_HEADERS} ${implot_SOURCES})
+    target_link_libraries(implot PUBLIC imgui)
+    target_compile_definitions(implot PUBLIC IMPLOT_BACKEND_ENABLE_OPENGL3 IMGUI_IMPL_OPENGL_LOADER_GLAD)
+    target_compile_options(implot PRIVATE -Wall -Wextra -pedantic -Werror -mavx2 -O2)
+endif ()
+
+
+##### Others
 include_directories("dependencies")
 
 
 ###############################################################################
-# tiny-cuda-nn library, samples, and benchmarks
+# library, examples, and benchmarks
 ###############################################################################
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR})
@@ -67,11 +103,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR})
 
+include_directories("include")
 add_subdirectory("src")
 
 if (BUILD_EXAMPLES)
-    add_subdirectory("samples")
-endif ()
-if (BUILD_BENCHMARK)
-    add_subdirectory("benchmarks/image")
+    add_subdirectory("examples")
 endif ()

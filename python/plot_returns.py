@@ -63,18 +63,10 @@ def plot_many_returns(dir="data/", max_n=1000, pick_random=True, inflation_perce
     N_years = (len(df_all) - 1) / 12
     min_amount = initial_capital * (1 + inflation_percent / 100.0) ** N_years
     count_bad = np.sum(df_all.tail(1).values < min_amount)
-<<<<<<< HEAD
+
     print(f"Out of {n_simulations} simulations, {count_bad} ended up with "
           f"less than the initial amount corrected for inflation of {inflation_percent}%")
-=======
-<<<<<<< HEAD
-    print(
-        f"Out of {n_simulations} simulations, {count_bad} ended up with less than the initial amount corrected for inflation of {inflation_percent}%")
-=======
-    print(f"Out of {n_simulations} simulations, {count_bad} ended up with less than the initial amount corrected for inflation of {inflation_percent}%")
 
->>>>>>> f22360452ab36a4eecfdc078e682c73ca009ab3a
->>>>>>> f0acca86b047da70320906cad1055ac472314b06
 
     ############################################################
     ## now create subplot with distribution of average return ##

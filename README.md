@@ -1,11 +1,11 @@
-# Monte Carlo simulations of taking money out of a fund for some time, considering varying market conditions
+# Monte Carlo simulations of long-term stock market evolution
 
 ## Quickstart
 
 C++ side: simulations
 
 ```
-sudo apt install libfmt-dev
+sudo apt install libfmt-dev libglfw3-dev
 mkdir build && cd build && cmake .. && make && cd ..
 ./build/example_simulated
 ```
@@ -52,7 +52,8 @@ Future goals:
 - [x] use historical return data
 - [x] visualization of fund value and average returns
 - [ ] c++ executable with arguments to avoid need to recompile
-- [ ] GUI with imgui to see progress while simulating
+- [ ] GUI with [imgui](https://github.com/ocornut/imgui) to see progress while simulating, see [implot](https://github.com/epezent/implot) and also [mahi-gui](https://github.com/mahilab/mahi-gui)
+  - [ ] fancy GUI based on ImPlot demo ['stocks.cpp'](https://github.com/epezent/implot_demos)
 - [ ] likelihood of going broke + reaching some target amount
 - [ ] withdrawal strategies
   - [ ] taking out fixed amount every period
@@ -65,6 +66,4 @@ Future goals:
 1. write to CSV file, then plot with python & matplotlib
     1. plot single simulation: `python python/plot_returns.py plot_returns --csv_file=output/gaussian_00001.csv`
     2. plot many simulations: `python python/plot_returns.py plot_many_returns --dir=output/`
-    3. single CSV for all simulations?
-2. write GUI using https://github.com/ocornut/imgui to display from C++
-3. dynamically update the GUI while simulations are running
+    3. single CSV for all simulations (faster) ?
