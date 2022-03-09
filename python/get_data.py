@@ -4,11 +4,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 import fire
 import seaborn as sns
+import os
 
 sns.set_style("ticks")
 
 def get_data_SP500():
-    print("- Downloading S&P500 data from Yahoo finances...")
+    print("- Downloading S&P500 data from Yahoo finance...")
     data = yf.download("^GSPC",'1928-01-01','2022-01-01')
     df = data[['Adj Close']]
     df_monthly = df.resample('1M').mean()
@@ -27,6 +28,7 @@ def get_data_SP500():
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07),fancybox=False, shadow=False, ncol=2)
         plt.title("Daily and Monthly returns of S&P500")
         plt.tight_layout()
+        os.makedirs("data")
         plt.savefig("data/SP500_monthly_returns.png")
         print("Saved plot of historical returns to 'data/' directory")
         #plt.show()

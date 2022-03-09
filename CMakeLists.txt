@@ -9,6 +9,12 @@ PROJECT(
 
 option(BUILD_EXAMPLES "Build ${CMAKE_PROJECT_NAME} example applications?" ON)
 
+# Configure CCache if available
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+        set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+endif(CCACHE_FOUND)
 
 ###############################################################################
 # Build type and C++ compiler setup
@@ -25,7 +31,6 @@ include(FetchContent)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 
 ###############################################################################
 # other libraries

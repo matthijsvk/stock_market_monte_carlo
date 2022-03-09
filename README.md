@@ -3,11 +3,13 @@
 ## Quickstart
 
 C++ side: simulations
-
+- requires g++ >= 9.1 (for `std::filesystem` support)
 ```
 sudo apt install libfmt-dev libglfw3-dev
-mkdir build && cd build && cmake .. && make && cd ..
+mkdir build && cd build
+cmake .. -GNinja && ninja && cd ..
 ./build/example_simulated
+./build/example_gui_simulated
 ```
 
 Python side: visualization
@@ -52,8 +54,10 @@ Future goals:
 - [x] use historical return data
 - [x] visualization of fund value and average returns
 - [ ] c++ executable with arguments to avoid need to recompile
-- [ ] GUI with [imgui](https://github.com/ocornut/imgui) to see progress while simulating, see [implot](https://github.com/epezent/implot) and also [mahi-gui](https://github.com/mahilab/mahi-gui)
-  - [ ] fancy GUI based on ImPlot demo ['stocks.cpp'](https://github.com/epezent/implot_demos)
+- [x] GUI with [imgui](https://github.com/ocornut/imgui) to see progress while simulating, see [implot](https://github.com/epezent/implot) and also [mahi-gui](https://github.com/mahilab/mahi-gui)
+  - [ ] fancy graphs with shaded Q1-Q3
+  - [ ] separate threads for simulation and visualization
+  - [ ] slider for final amount & probability of reaching that
 - [ ] likelihood of going broke + reaching some target amount
 - [ ] withdrawal strategies
   - [ ] taking out fixed amount every period
