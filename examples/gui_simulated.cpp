@@ -10,19 +10,17 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 #include "implot.h"
-#include "implot_demo.cpp"
+//#include "implot_demo.cpp"
 #include <fmt/core.h>
 
 #include <simulations.h>
 
 #include <cstdio>
 #include <cmath>
-#include <cstdlib>
-#include <ctime>
-#include <iostream>
 #include <vector>
 #include <random>
 #include <numeric>
+#include <chrono>
 
 // About Desktop OpenGL function loaders:
 //  Modern desktop OpenGL doesn't have a standard portable header file to load
@@ -90,10 +88,11 @@ std::vector<float> quartile_sort(std::vector<float> &vec) {
   std::nth_element(vec.begin() + Q1 + 1, vec.begin() + Q2, vec.end());
   std::nth_element(vec.begin() + Q2 + 1, vec.begin() + Q3, vec.end());
 
-  std::nth_element(vec.begin(), vec.begin(), vec.end());
-  std::nth_element(vec.begin(), vec.end(), vec.end());
+  // minimum and maximum
+  float min_value = *min_element(vec.begin(), vec.end());
+  float max_value = *max_element(vec.begin(), vec.end());
 
-  std::vector<float> out = {vec.at(0), vec.at(Q1), vec.at(Q2), vec.at(Q3), vec.back()};
+  std::vector<float> out = {min_value, vec.at(Q1), vec.at(Q2), vec.at(Q3), max_value};
   return out;
 }
 
@@ -105,54 +104,59 @@ void get_mean_std(std::vector<float> &v, float &mean, float &std) {
   std = std::sqrt(sqsum / v.size() - mean * mean);
 }
 
-void mc_simulations(int &n_simulations,
+void mc_simulations(std::atomic<int> &n_simulations,
                     const int max_n_simulations,
-                    const int n_months, const float initial_capital,
+                    const int n_periods, const float initial_capital,
                     std::vector<float> &historical_returns,
                     std::vector<std::vector<float>> &mc_data,
                     std::vector<float> &final_values) {
-  // right now we just do 1 per frame, so 60 simulations/second
-  // we could do way more using decoupling plotting & simulation using separate threads...
-  std::vector<float> returns;
-  std::vector<float> values;
-
   // TODO remove
   float monthly_return_mean = 7.0 / 12;
   float monthly_return_std = 10.0 / 12; // 68% is within 1 std from mean, 95% within 2 std, 99.7% within 3 std
 
-  while (n_simulations < max_n_simulations) {
-    returns = sample_returns_historical(n_months, historical_returns);
-//    returns = sample_returns_gaussian(n_months, monthly_return_mean, monthly_return_std);
-    values = many_updates(initial_capital, returns);
-    final_values.push_back(values.back());
-    mc_data.push_back(values);
+  //pre-allocate so we can do parallel for
+  final_values.reserve(max_n_simulations);
+  mc_data.reserve(max_n_simulations);
+
+  std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+#pragma omp parallel for
+  for (int n_sims = 0; n_sims < max_n_simulations; n_sims++) {
+    std::vector<float> returns = sample_returns_historical(n_periods, historical_returns);
+//    std::vector<float> returns = sample_returns_gaussian(n_months, monthly_return_mean, monthly_return_std);
+    std::vector<float> values = many_updates(initial_capital, returns);
+    final_values[n_sims] = values.back();
+    mc_data[n_sims] = values;
 
     n_simulations++;
-    if (n_simulations % 100 == 0)
+    if (n_simulations % 1000 == 0)
       fmt::print("{:d}/{:d} simulations done\n", n_simulations, max_n_simulations);
   }
 
-  fmt::print("All {} simulation done!\n", n_simulations);
+  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  fmt::print("All {} simulation done in {} s!\n", n_simulations, timediff / 1000.0);
 }
 
 int main(int, char **) {
+
   //-------------------------------------
   // Monte Carlo stock market simulations
   //-------------------------------------
   float initial_capital = 1000;
 
   int n_years = 30;
-  int n_months = 12 * n_years;
+  int n_periods = 12 * n_years;
 
   // Monte Carlo
-  int n_simulations = 0;
-  int max_n_simulations = static_cast<int>(10e5);
+  std::atomic<int> n_simulations = 0; // atomic b/c shared between openMP threads
+  int max_n_simulations = static_cast<int>(1e6);
   // limit max shown for plotting?
-  int max_displayed_plots = 1000;
+  int max_displayed_plots = 2000;
 
-  // buffers to store resunts
-  std::vector<std::vector<float>> mc_data;
-  std::vector<float> final_values;
+  // buffers to store results
+  std::vector<std::vector<float>> mc_data(max_n_simulations, std::vector<float>(n_periods));
+  std::vector<float> final_values(max_n_simulations);
 
   ////simulate by sampling from historical monthly returns
   std::string historical_returns_csv = "data/SP500_monthly_returns.csv";
@@ -162,7 +166,7 @@ int main(int, char **) {
   std::thread t1(mc_simulations,
                  std::ref(n_simulations),
                  max_n_simulations,
-                 n_months,
+                 n_periods,
                  initial_capital,
                  std::ref(historical_returns),
                  std::ref(mc_data),
@@ -173,7 +177,7 @@ int main(int, char **) {
   //-------------------------------------
   glfwSetErrorCallback(glfw_error_callback);
 
-  // Init to setup window
+  // Init to set up window
   if (!glfwInit())
     return 1;
 
@@ -203,8 +207,8 @@ int main(int, char **) {
 
   // Create window with graphics context
   GLFWwindow *window = glfwCreateWindow(1280, 720,
-                                        "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
-  if (window == NULL)
+                                        "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
+  if (window == nullptr)
     return 1;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1); // Enable vsync
@@ -282,7 +286,7 @@ int main(int, char **) {
 
     // horizontal line for desired final amount, and calculate how many simulations are below this
     static float min_final_amount;
-    float max_final_value_simulations = *max_element(final_values.begin(),final_values.end());
+    float max_final_value_simulations = *max_element(final_values.begin(), final_values.end());
     ImGui::SliderFloat("Desired final amount?", &min_final_amount, 0, max_final_value_simulations);
 
     int count_below_min = 0;
@@ -302,6 +306,8 @@ int main(int, char **) {
       // plot all lines in PlotBuffer.
       // Limit number for performance & stop changing if all simulations are done
       for (int n_shown = 0; n_shown < max_displayed_plots; n_shown++) {
+        if (n_shown >= mc_data.size())
+          break;
         int idx = n_shown;
         if (n_simulations < max_n_simulations && mc_data.size() > max_displayed_plots)
           idx = int(rng_uniform(0, int(mc_data.size())));
@@ -324,7 +330,10 @@ int main(int, char **) {
     // calculate and print statistics
     std::vector<float> quartiles = quartile_sort(final_values);
     ImGui::Text("%s", fmt::format("min: {:.2f} | Q1: {:.2f} | median: {:.2f} | Q3: {:.2f} | max: {:.2f}",
-                                  quartiles.at(0), quartiles.at(1), quartiles.at(2), quartiles.at(3),
+                                  quartiles.at(0),
+                                  quartiles.at(1),
+                                  quartiles.at(2),
+                                  quartiles.at(3),
                                   quartiles.at(4)).c_str());
 
     float mean, std;
@@ -334,7 +343,6 @@ int main(int, char **) {
     ImGui::Text("%s", fmt::format("{:d}/{:d} ({:.4f}%) are below target final value",
                                   count_below_min, n_simulations,
                                   100 * float(count_below_min) / n_simulations).c_str());
-
     ImGui::End();
 
     //-------------------------------------------------------------------

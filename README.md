@@ -68,7 +68,7 @@ python python/plot_returns.py plot_many_returns --dir=output
     - [ ] taking out fixed amount every period
     - [ ] taking out some percentage every period
     - [ ] taking out varying percentage every period
-- [ ] Monte Carlo simulation with openMP
+- [x] Monte Carlo simulation with openMP
 - [ ] Monte Carlo simulation on GPU
 
 
