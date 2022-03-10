@@ -258,14 +258,16 @@ int main(int, char **) {
 
     ImGui::Begin("My Window");
     double x_axis[1000];
-    double y_axis[1000];
+//    double y_axis[1000];
+    std::vector<double> y_axis;
     for (int i = 0; i < 1000; i++) {
       x_axis[i] = i;
-      y_axis[i] = rng();
+//      y_axis[i] = rng();
+      y_axis.push_back(rng());
     }
     if (ImPlot::BeginPlot("My Plot")) {
 //      ImPlot::PlotLine("NormalDistribution 0,1", x_axis, y_axis, 1000, 0, sizeof(double)); //Example is just ("name", x, y, count)
-      ImPlot::PlotLine("Normal Distribution 0,1", x_axis, y_axis, 1000);
+      ImPlot::PlotLine("Normal Distribution 0,1", x_axis, y_axis.data(), 1000);
       ImPlot::EndPlot();
     }
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
@@ -274,8 +276,8 @@ int main(int, char **) {
     //ImPlot::ShowBenchmarkTool();
     ImPlot::GetStyle() = backup;
     ImPlot::PopColormap();
-    ImGui::End();
 
+    ImGui::End();
 
     // other demo
     ImPlot::ShowDemo_BarGroups();
