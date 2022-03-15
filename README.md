@@ -18,7 +18,9 @@ sampled either from:
 
 C++ side: simulations + visualization with [DearImGui](https://github.com/ocornut/imgui)
 
-- requires g++ >= 9.1 (for `std::filesystem` support)
+- requires g++-10 and CMake 3.20!
+    - `sudo pip install cmake --upgrade`
+    - `sudo apt install -y g++-11 && update-alternatives --config g++`
 
 ```
 sudo apt install libfmt-dev libglfw3-dev
@@ -63,7 +65,7 @@ python python/plot_returns.py plot_many_returns --dir=output
   see [implot](https://github.com/epezent/implot) and also [mahi-gui](https://github.com/mahilab/mahi-gui)
     - [x] separate threads for simulation and visualization
     - [x] slider for final amount & probability of reaching that
-- [ ] c++ executable with arguments to avoid need to recompile
+- [x] c++ executable with arguments to avoid need to recompile
 - [ ] withdrawal strategies
     - [ ] taking out fixed amount every period
     - [ ] taking out some percentage every period
