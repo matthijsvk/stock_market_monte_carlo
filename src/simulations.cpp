@@ -1,25 +1,54 @@
-#include <helpers.h>
-
 #include <chrono>
 #include <random>
+#include <iostream>
 #include <vector>
+#include <iterator>
 
 #include <fmt/core.h>
 #include "csv.h"
+
+#include "stock_market_monte_carlo/helpers.h"
 
 float update_fund(float fund_value, float period_return) {
     return fund_value * (float(100.0) + period_return) / 100;
 }
 
-std::vector<float> many_updates(float fund_value, std::vector<float> &returns) {
-    std::vector<float> fund_values = {fund_value};
-
-    for (auto this_return: returns) {
-        float new_fund_value = update_fund(fund_values.back(), this_return);
-        fund_values.push_back(new_fund_value);
+void __many_updates(float* returns, float* totals, int n_periods){
+    for (int i=0; i<n_periods; i++) {
+        float this_return = returns[i];
+        float last_total = totals[i];
+        float new_fund_value = update_fund(last_total, this_return);
+        totals[i+1] = new_fund_value;
     }
-    return fund_values;
 }
+
+std::vector<float> many_updates(float fund_value, std::vector<float> &returns, int n_periods) {
+    // initialize arrays
+    float fund_values[n_periods+1];
+    fund_values[0] = fund_value;
+
+    float* returns_arr = &returns[0]; //  this remains valid as long as returns vector isn't expanded, which we don't do belo, so ok
+
+    // do the computations
+    __many_updates(returns_arr, fund_values, n_periods);
+
+    // convert to vector b/c it's expected TODO this is a copy?
+    std::vector<float> v(fund_values, fund_values + n_periods+1);
+    return v;
+}
+
+//std::vector<float> many_updates(float fund_value, std::vector<float> &returns) {
+//    std::vector<float> fund_values(returns.size()+1, 0);
+//    fund_values[0] = fund_value;
+//
+//    for (int i=0; i<returns.size(); i++) {
+//        float this_return = returns[i];
+//        float last_total = fund_values[i];
+//        float new_fund_value = update_fund(last_total, this_return);
+//        fund_values[i+1] = new_fund_value;
+//    }
+//    return fund_values;
+//}
 
 std::vector<float> sample_returns_gaussian(int n, float return_mean, float return_std) {
     /* Create gaussian random engine with the help of seed */
@@ -41,7 +70,7 @@ void one_simulation_gaussian(const std::string output_fname,
                              float return_mean,
                              float return_std) {
     std::vector<float> returns = sample_returns_gaussian(n_periods, return_mean, return_std);
-    std::vector<float> values = many_updates(initial_capital, returns);
+    std::vector<float> values = many_updates(initial_capital, returns, n_periods);
     write_data_file(output_fname, returns, values);
 }
 
@@ -54,7 +83,6 @@ void monte_carlo_gaussian(int n, float initial_capital, int n_periods, float ret
 }
 
 //// Historical data
-
 std::vector<float> read_historical_returns(std::string csv_fpath) {
     io::CSVReader<1> in(csv_fpath);
     in.read_header(io::ignore_extra_column, "returns");
@@ -98,7 +126,7 @@ void one_simulation_historical(const std::string output_fname,
                                int n_periods,
                                std::vector<float> &historical_returns) {
     std::vector<float> returns = sample_returns_historical(n_periods, historical_returns);
-    std::vector<float> values = many_updates(initial_capital, returns);
+    std::vector<float> values = many_updates(initial_capital, returns, n_periods);
     write_data_file(output_fname, returns, values);
 }
 

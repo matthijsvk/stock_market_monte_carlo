@@ -173,7 +173,7 @@ int main(int, char **) {
   // io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
   // ImFont* font =
   // io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f,
-  // NULL, io.Fonts->GetGlyphRangesJapanese()); IM_ASSERT(font != NULL);
+  // NULL, io.Fonts->GetGlyphRangesCUDA_Japanese()); IM_ASSERT(font != NULL);
 
   // Our state
   bool show_demo_window = true;

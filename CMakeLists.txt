@@ -1,20 +1,22 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.21)
+#see https://cliutils.gitlab.io/modern-cmake/chapters/basics/example.html
+# and https://gitlab.com/CLIUtils/modern-cmake/tree/master/examples/extended-project
 
 PROJECT(
         stock_market_monte_carlo
         VERSION 0.1
         DESCRIPTION "Trying out things"
-        LANGUAGES CXX
+        LANGUAGES CUDA CXX
 )
 
 option(BUILD_EXAMPLES "Build ${CMAKE_PROJECT_NAME} example applications?" ON)
 
 # Configure CCache if available
 find_program(CCACHE_FOUND ccache)
-if(CCACHE_FOUND)
-        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-        set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
-endif(CCACHE_FOUND)
+if (CCACHE_FOUND)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+endif (CCACHE_FOUND)
 
 ###############################################################################
 # Build type and C++ compiler setup
@@ -28,16 +30,54 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif ()
 
 include(FetchContent)
+
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD_REQUIRED OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(OpenMP)
-if(OPENMP_FOUND)
-    message("OPENMP FOUND")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+################################################################################
+## CUDA compiler setup
+################################################################################
+
+#find_package(CUDA REQUIRED)
+SET(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
+set(CUDA_NVCC_EXECUTABLE /usr/local/cuda/bin/nvcc)
+if (NOT DEFINED CMAKE_CUDA_STANDARD)
+    set(CMAKE_CUDA_STANDARD 20)
+    set(CMAKE_CUDA_STANDARD_REQUIRED OFF)
+    #set(CMAKE_CUDA_EXTENSIONS OFF)
+    #set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
 endif()
+## adapted from https://stackoverflow.com/a/69353718
+#include(FindCUDA/select_compute_arch)
+#CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
+#string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
+#string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
+#string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
+#set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
+#
+## Remove unsupported architectures
+#list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "86+PTX")
+#
+#if (DEFINED ENV{TCNN_CUDA_ARCHITECTURES})
+#    message(STATUS "Obtained target architecture from environment variable TCNN_CUDA_ARCHITECTURES=$ENV{TCNN_CUDA_ARCHITECTURES}")
+#    set(CMAKE_CUDA_ARCHITECTURES $ENV{TCNN_CUDA_ARCHITECTURES})
+#endif ()
+#
+## Sort the list to obtain lowest architecture that must be compiled for.
+#list(SORT CMAKE_CUDA_ARCHITECTURES COMPARE NATURAL ORDER ASCENDING)
+#list(GET CMAKE_CUDA_ARCHITECTURES 0 MIN_GPU_ARCH)
+#
+#message(STATUS "Targeting GPU architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+#get_directory_property(TCNN_HAS_PARENT PARENT_DIRECTORY)
+#if (TCNN_HAS_PARENT)
+#    set(CMAKE_CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES} PARENT_SCOPE)
+#endif ()
+
+#
+#list(APPEND CUDA_NVCC_FLAGS "--extended-lambda")
+#list(APPEND CUDA_NVCC_FLAGS "--expt-relaxed-constexpr")
+
 
 ###############################################################################
 # other libraries
@@ -50,10 +90,19 @@ FetchContent_MakeAvailable(
         csv
 )
 
-set(THREADS_PREFER_PTHREAD_FLAG ON)
+#set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-## GUI stuff: https://alandefreitas.github.io/moderncpp/guis/imgui/
+find_package(OpenMP)
+if(OPENMP_FOUND)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+
+###############################################################################
+# other libraries: GUI stuff: https://alandefreitas.github.io/moderncpp/guis/imgui/
+###############################################################################
+
 find_package(OpenGL)
 find_package(X11 REQUIRED)
 
@@ -80,7 +129,7 @@ if (NOT imgui_POPULATED)
     set(IMGUI_INCLUDE_DIR ${imgui_SOURCE_DIR}/)
     file(GLOB IMGUI_SOURCES ${imgui_SOURCE_DIR}/*.cpp)
     file(GLOB IMGUI_HEADERS ${imgui_SOURCE_DIR}/*.h)
-    add_library(imgui STATIC ${IMGUI_SOURCES} ${IMGUI_SOURCES} ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp)
+    add_library(imgui STATIC ${IMGUI_SOURCES} ${IMGUI_SOURCES} ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp src/simulations.cu include/stock_market_monte_carlo/gpu.h)
     add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD)
 
     # Link
@@ -102,22 +151,26 @@ if (NOT implot_POPULATED)
 endif ()
 
 
-##### Others
-include_directories("dependencies")
+###############################################################################
+# Include files
+###############################################################################
+#find_library(
+#        #        CUDA_CUBLASLT_LIBRARY cublasLt
+#        ${CUDA_HOME}/lib64
+#        ${CUDA_HOME}/lib
+#)
+#message(STATUS "CUDA_HOME: $ENV{CUDA_HOME}")
 
 
 ###############################################################################
-# library, examples, and benchmarks
+# tiny-cuda-nn library, samples, and benchmarks
 ###############################################################################
-
-
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR})
 
-include_directories("include")
 add_subdirectory("src")
 
 if (BUILD_EXAMPLES)

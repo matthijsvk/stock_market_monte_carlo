@@ -26,7 +26,7 @@
 #include <fmt/core.h>
 #include "omp.h"
 
-#include <simulations.h>
+#include "stock_market_monte_carlo/simulations.h"
 
 // About Desktop OpenGL function loaders:
 //  Modern desktop OpenGL doesn't have a standard portable header file to load
@@ -117,7 +117,7 @@ void mc_simulations(std::atomic<int> &n_simulations,
 
             // do calculations
             std::vector<float> returns = sample_returns_historical(n_periods, historical_returns);
-            std::vector<float> values = many_updates(initial_capital, returns);
+            std::vector<float> values = many_updates(initial_capital, returns, n_periods);
             //assert (returns.size() == values.size());
 
             final_values[id] = values.back();

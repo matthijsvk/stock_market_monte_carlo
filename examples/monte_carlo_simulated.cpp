@@ -1,5 +1,5 @@
 #include <iostream>
-#include <simulations.h>
+#include "stock_market_monte_carlo/simulations.h"
 
 int main() {
   ///////////////////////////////////////////
