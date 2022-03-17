@@ -1,12 +1,14 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.19)
 #see https://cliutils.gitlab.io/modern-cmake/chapters/basics/example.html
 # and https://gitlab.com/CLIUtils/modern-cmake/tree/master/examples/extended-project
+
+SET(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
 
 PROJECT(
         stock_market_monte_carlo
         VERSION 0.1
         DESCRIPTION "Trying out things"
-        LANGUAGES CUDA CXX
+        LANGUAGES CXX CUDA
 )
 
 option(BUILD_EXAMPLES "Build ${CMAKE_PROJECT_NAME} example applications?" ON)
@@ -39,42 +41,34 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 ## CUDA compiler setup
 ################################################################################
 
-#find_package(CUDA REQUIRED)
-SET(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
-set(CUDA_NVCC_EXECUTABLE /usr/local/cuda/bin/nvcc)
 if (NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED OFF)
-    #set(CMAKE_CUDA_EXTENSIONS OFF)
-    #set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
+    set(CMAKE_CUDA_EXTENSIONS OFF)
+    set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
 endif()
+## find max architecture for available GPU
 ## adapted from https://stackoverflow.com/a/69353718
-#include(FindCUDA/select_compute_arch)
-#CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
-#string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
-#string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
-#string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
-#set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
-#
-## Remove unsupported architectures
-#list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "86+PTX")
-#
-#if (DEFINED ENV{TCNN_CUDA_ARCHITECTURES})
-#    message(STATUS "Obtained target architecture from environment variable TCNN_CUDA_ARCHITECTURES=$ENV{TCNN_CUDA_ARCHITECTURES}")
-#    set(CMAKE_CUDA_ARCHITECTURES $ENV{TCNN_CUDA_ARCHITECTURES})
-#endif ()
-#
-## Sort the list to obtain lowest architecture that must be compiled for.
-#list(SORT CMAKE_CUDA_ARCHITECTURES COMPARE NATURAL ORDER ASCENDING)
-#list(GET CMAKE_CUDA_ARCHITECTURES 0 MIN_GPU_ARCH)
-#
-#message(STATUS "Targeting GPU architectures: ${CMAKE_CUDA_ARCHITECTURES}")
-#get_directory_property(TCNN_HAS_PARENT PARENT_DIRECTORY)
-#if (TCNN_HAS_PARENT)
-#    set(CMAKE_CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES} PARENT_SCOPE)
-#endif ()
+include(FindCUDA/select_compute_arch)
+CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
+string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
+string(REPLACE " " ";" INSTALLED_GPU_CCS_3 "${INSTALLED_GPU_CCS_2}")
+string(REPLACE "." "" CUDA_ARCH_LIST "${INSTALLED_GPU_CCS_3}")
+set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_LIST})
 
-#
+## Remove unsupported architectures
+list(REMOVE_ITEM CMAKE_CUDA_ARCHITECTURES "86+PTX")
+
+# Sort the list to obtain lowest architecture that must be compiled for.
+list(SORT CMAKE_CUDA_ARCHITECTURES COMPARE NATURAL ORDER ASCENDING)
+list(GET CMAKE_CUDA_ARCHITECTURES 0 MIN_GPU_ARCH)
+
+message(STATUS "Targeting GPU architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+get_directory_property(TCNN_HAS_PARENT PARENT_DIRECTORY)
+if (TCNN_HAS_PARENT)
+    set(CMAKE_CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES} PARENT_SCOPE)
+endif ()
+
 #list(APPEND CUDA_NVCC_FLAGS "--extended-lambda")
 #list(APPEND CUDA_NVCC_FLAGS "--expt-relaxed-constexpr")
 

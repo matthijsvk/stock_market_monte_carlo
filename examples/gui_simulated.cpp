@@ -18,13 +18,10 @@
 #include <numeric>
 #include <chrono>
 #include <iostream>
-#include <unistd.h>
 #include <cstdlib>
-#include <ctime>
 #include <thread>
 
 #include <fmt/core.h>
-#include "omp.h"
 
 #include "stock_market_monte_carlo/simulations.h"
 

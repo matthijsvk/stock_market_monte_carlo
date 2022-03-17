@@ -8,6 +8,7 @@
 #include "csv.h"
 
 #include "stock_market_monte_carlo/helpers.h"
+#include "stock_market_monte_carlo/simulations.h"
 
 float update_fund(float fund_value, float period_return) {
     return fund_value * (float(100.0) + period_return) / 100;
@@ -15,26 +16,38 @@ float update_fund(float fund_value, float period_return) {
 
 void __many_updates(float* returns, float* totals, int n_periods){
     for (int i=0; i<n_periods; i++) {
-        float this_return = returns[i];
-        float last_total = totals[i];
-        float new_fund_value = update_fund(last_total, this_return);
-        totals[i+1] = new_fund_value;
+        totals[i+1] = update_fund(totals[i], returns[i]);
     }
 }
 
 std::vector<float> many_updates(float fund_value, std::vector<float> &returns, int n_periods) {
     // initialize arrays
-    float fund_values[n_periods+1];
-    fund_values[0] = fund_value;
+    float totals[n_periods+1];
+    totals[0] = fund_value;
 
     float* returns_arr = &returns[0]; //  this remains valid as long as returns vector isn't expanded, which we don't do belo, so ok
 
     // do the computations
-    __many_updates(returns_arr, fund_values, n_periods);
+    __many_updates(returns_arr, totals, n_periods);
 
     // convert to vector b/c it's expected TODO this is a copy?
-    std::vector<float> v(fund_values, fund_values + n_periods+1);
+    std::vector<float> v(totals, totals + n_periods+1);
     return v;
+}
+
+std::vector<float> many_updates_gpu(float fund_value, std::vector<float> &returns, int n_periods) {
+  // initialize arrays
+  float totals[n_periods+1];
+  totals[0] = fund_value;
+
+  float* returns_arr = &returns[0]; //  this remains valid as long as returns vector isn't expanded, which we don't do belo, so ok
+
+  // do the computations
+  __many_updates_gpu(returns_arr, totals, n_periods);
+
+  // convert to vector b/c it's expected TODO this is a copy?
+  std::vector<float> v(totals, totals + n_periods+1);
+  return v;
 }
 
 //std::vector<float> many_updates(float fund_value, std::vector<float> &returns) {

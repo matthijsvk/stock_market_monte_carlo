@@ -1,4 +1,3 @@
-#include "stock_market_monte_carlo/gpu.h"
 #include "cuda.h"
 #include <iostream>
 
