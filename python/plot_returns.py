@@ -1,12 +1,12 @@
-import matplotlib.pyplot as plt
 import fire
-import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 import os
+import pandas as pd
+import random
+import seaborn as sns
 from natsort import natsorted
 from tqdm import tqdm
-import seaborn as sns
-import numpy as np
-import random
 
 plt.style.use("seaborn")
 sns.set_theme(style="whitegrid")
@@ -66,7 +66,6 @@ def plot_many_returns(dir="data/", max_n=1000, pick_random=True, inflation_perce
 
     print(f"Out of {n_simulations} simulations, {count_bad} ended up with "
           f"less than the initial amount corrected for inflation of {inflation_percent}%")
-
 
     ############################################################
     ## now create subplot with distribution of average return ##

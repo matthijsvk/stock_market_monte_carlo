@@ -1,22 +1,22 @@
-import yfinance as yf
-import pandas as pd
+import fire
 import matplotlib
 import matplotlib.pyplot as plt
-import fire
-import seaborn as sns
 import os
+import seaborn as sns
+import yfinance as yf
 
 sns.set_style("ticks")
 
+
 def get_data_SP500():
     print("- Downloading S&P500 data from Yahoo finance...")
-    data = yf.download("^GSPC",'1928-01-01','2022-01-01')
+    data = yf.download("^GSPC", '1928-01-01', '2022-01-01')
     df = data[['Adj Close']]
     df_monthly = df.resample('1M').mean()
 
     def plot_value(df, df_monthly):
         print("- Plotting...")
-        fig, ax = plt.subplots(figsize=(16,10))
+        fig, ax = plt.subplots(figsize=(16, 10))
 
         df.plot(logy=True, ax=ax, y='Adj Close', label='daily')
         df_monthly.plot(logy=True, ax=ax, y='Adj Close', label='monthly', x_compat=True)
@@ -26,17 +26,17 @@ def get_data_SP500():
 
         plt.grid(which='both', axis='both', color='grey', linestyle='-', linewidth=1, alpha=0.5)
         fig.subplots_adjust(bottom=0.1, wspace=0.33)
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07),fancybox=False, shadow=False, ncol=2)
+        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07), fancybox=False, shadow=False, ncol=2)
         plt.title("Daily and Monthly returns of S&P500")
         plt.tight_layout()
         os.makedirs("data", exist_ok=True)
         plt.savefig("data/SP500_accumulated_returns.png")
         print("Saved plot of accumulated historical returns to 'data/' directory")
-        #plt.show()
+        # plt.show()
 
     def plot_returns(monthly_returns):
         print("- Plotting...")
-        fig, ax = plt.subplots(figsize=(16,10))
+        fig, ax = plt.subplots(figsize=(16, 10))
 
         monthly_returns.plot(ax=ax, x_compat=True)
         ax.xaxis.set_major_locator(matplotlib.dates.YearLocator(base=5))
@@ -44,13 +44,13 @@ def get_data_SP500():
 
         plt.grid(which='both', axis='both', color='grey', linestyle='-', linewidth=1, alpha=0.5)
         fig.subplots_adjust(bottom=0.1, wspace=0.33)
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07),fancybox=False, shadow=False, ncol=2)
+        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.07), fancybox=False, shadow=False, ncol=2)
         plt.title("Daily and Monthly returns of S&P500")
         plt.tight_layout()
         os.makedirs("data", exist_ok=True)
         plt.savefig("data/SP500_monthly_returns.png")
         print("Saved plot of historical returns to 'data/' directory")
-        #plt.show()
+        # plt.show()
 
     plot_value(df, df_monthly)
 
@@ -70,7 +70,6 @@ def get_data_SP500():
     print("- Saved CSV of monthly historical returns to 'data/' directory")
 
     print("Done!")
-
 
 
 if __name__ == "__main__":

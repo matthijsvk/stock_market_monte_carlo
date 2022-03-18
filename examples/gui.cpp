@@ -6,20 +6,19 @@
 
 #define IMPLOT_DISABLE_OBSOLETE_FUNCTIONS
 
-#include "imgui.h"
-#include "backends/imgui_impl_glfw.h"
-#include "backends/imgui_impl_opengl3.h"
-#include "implot.h"
-#include "implot_demo.cpp"
-#include <cstdio>
-
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
-#include <vector>
 #include <random>
+#include <vector>
+
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_opengl3.h"
+#include "imgui.h"
+#include "implot.h"
+#include "implot_demo.cpp"
 
 // About Desktop OpenGL function loaders:
 //  Modern desktop OpenGL doesn't have a standard portable header file to load
@@ -29,23 +28,23 @@
 //  manually implement your own.
 // Load OpenGL functions
 #if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
-#include <GL/gl3w.h> // Initialize with gl3wInit()
+#include <GL/gl3w.h>  // Initialize with gl3wInit()
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLEW)
-#include <GL/glew.h> // Initialize with glewInit()
+#include <GL/glew.h>  // Initialize with glewInit()
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
-#include <glad/glad.h> // Initialize with gladLoadGL()
+#include <glad/glad.h>  // Initialize with gladLoadGL()
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING2)
-#define GLFW_INCLUDE_NONE // GLFW including OpenGL headers causes ambiguity or
+#define GLFW_INCLUDE_NONE  // GLFW including OpenGL headers causes ambiguity or
 // multiple definition errors.
-#include <glbinding/Binding.h> // Initialize with glbinding::Binding::initialize()
+#include <glbinding/Binding.h>  // Initialize with glbinding::Binding::initialize()
 #include <glbinding/gl/gl.h>
 
 using namespace gl;
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING3)
-#define GLFW_INCLUDE_NONE // GLFW including OpenGL headers causes ambiguity or
+#define GLFW_INCLUDE_NONE  // GLFW including OpenGL headers causes ambiguity or
 // multiple definition errors.
 #include <glbinding/gl/gl.h>
-#include <glbinding/glbinding.h> // Initialize with glbinding::initialize()
+#include <glbinding/glbinding.h>  // Initialize with glbinding::initialize()
 using namespace gl;
 #else
 #include IMGUI_IMPL_OPENGL_LOADER_CUSTOM
@@ -73,40 +72,38 @@ int main(int, char **) {
   glfwSetErrorCallback(glfw_error_callback);
 
   // Init to setup window
-  if (!glfwInit())
-    return 1;
+  if (!glfwInit()) return 1;
 
-  // Decide GL+GLSL versions
+    // Decide GL+GLSL versions
 // Decide GL+GLSL versions
 #if defined(IMGUI_IMPL_OPENGL_ES2)
   // GL ES 2.0 + GLSL 100
-    const char* glsl_version = "#version 100";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+  const char *glsl_version = "#version 100";
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
 #elif defined(__APPLE__)
   // GL 3.2 + GLSL 150
-    const char* glsl_version = "#version 150";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
+  const char *glsl_version = "#version 150";
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);  // Required on Mac
 #else
   // GL 3.0 + GLSL 130
   const char *glsl_version = "#version 130";
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-  //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-  //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+  // glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+
+  // only glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // 3.0+ only
 #endif
 
   // Create window with graphics context
-  GLFWwindow *window = glfwCreateWindow(1280, 720,
-                                        "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
-  if (window == NULL)
-    return 1;
+  GLFWwindow *window = glfwCreateWindow(
+      1280, 720, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+  if (window == NULL) return 1;
   glfwMakeContextCurrent(window);
-  glfwSwapInterval(1); // Enable vsync
+  glfwSwapInterval(1);  // Enable vsync
 
   // Initialize OpenGL loader
 #if defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
@@ -117,15 +114,15 @@ int main(int, char **) {
   bool err = gladLoadGL() == 0;
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING2)
   bool err = false;
-    glbinding::Binding::initialize();
+  glbinding::Binding::initialize();
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING3)
-    bool err = false;
-    glbinding::initialize([](const char *name) {
-        return (glbinding::ProcAddress)glfwGetProcAddress(name);
-    });
+  bool err = false;
+  glbinding::initialize([](const char *name) {
+    return (glbinding::ProcAddress)glfwGetProcAddress(name);
+  });
 #else
-    bool err = false; // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader
-                      // is likely to requires some form of initialization.
+  bool err = false;  // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader
+                     // is likely to requires some form of initialization.
 #endif
   if (err) {
     fprintf(stderr, "Failed to initialize OpenGL loader!\n");
@@ -137,7 +134,7 @@ int main(int, char **) {
   ImGui::CreateContext();
   ImPlot::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
-  (void) io;
+  (void)io;
   // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable
   // Keyboard Controls io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; //
   // Enable Gamepad Controls
@@ -202,8 +199,7 @@ int main(int, char **) {
     // ImGui::ShowDemoWindow()! You can browse its code to learn more about
     // Dear ImGui!).
     // Render demo
-    if (show_demo_window)
-      ImGui::ShowDemoWindow(&show_demo_window);
+    if (show_demo_window) ImGui::ShowDemoWindow(&show_demo_window);
 
     // 2. Show a simple window that we create ourselves. We use a Begin/End
     // pair to create a named window.
@@ -211,18 +207,19 @@ int main(int, char **) {
       static float f = 0.0f;
       static int counter = 0;
 
-      ImGui::Begin("Hello, world!"); // Create a window called "Hello,
+      ImGui::Begin("Hello, world!");  // Create a window called "Hello,
       // world!" and append into it.
 
-      ImGui::Text( "This is some useful text.");
-      ImGui::Checkbox("Demo Window", &show_demo_window); // Edit bools storing our window
+      ImGui::Text("This is some useful text.");
+      ImGui::Checkbox("Demo Window",
+                      &show_demo_window);  // Edit bools storing our window
       ImGui::Checkbox("Another Window", &show_another_window);
 
-      ImGui::SliderFloat("float", &f, 0.0f,  1.0f);
+      ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
       // Edit 3 floats representing a color
-      ImGui::ColorEdit3("clear color", (float *) &clear_color);
+      ImGui::ColorEdit3("clear color", (float *)&clear_color);
 
-      if (ImGui::Button("Button++")) // Buttons return true when clicked
+      if (ImGui::Button("Button++"))  // Buttons return true when clicked
         counter++;
       ImGui::SameLine();
       ImGui::Text("counter = %d", counter);
@@ -233,24 +230,24 @@ int main(int, char **) {
       ImGui::End();
     }
 
-//    // 3. Show another simple window.
-//    if (show_another_window) {
-//      ImGui::Begin(
-//          "Another Window",
-//          &show_another_window); // Pass a pointer to our bool variable
-//      // (the window will have a closing button
-//      // that will clear the bool when clicked)
-//      ImGui::Text("Hello from another window!");
-//      if (ImGui::Button("Close Me"))
-//        show_another_window = false;
-//      ImGui::End();
-//    }
+    //    // 3. Show another simple window.
+    //    if (show_another_window) {
+    //      ImGui::Begin(
+    //          "Another Window",
+    //          &show_another_window); // Pass a pointer to our bool variable
+    //      // (the window will have a closing button
+    //      // that will clear the bool when clicked)
+    //      ImGui::Text("Hello from another window!");
+    //      if (ImGui::Button("Close Me"))
+    //        show_another_window = false;
+    //      ImGui::End();
+    //    }
 
-//    // 4. Show ImPlot plot (https://github.com/epezent/implot)
-//    ImPlot::ShowDemoWindow();
+    //    // 4. Show ImPlot plot (https://github.com/epezent/implot)
+    //    ImPlot::ShowDemoWindow();
 
     // 5. Gauss
-    ImGui::SetNextWindowSize(ImVec2(600,800), ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(600, 800), ImGuiCond_Appearing);
     ImPlot::PushColormap(ImPlotColormap_Deep);
     // normally you wouldn't change the entire style each frame
     ImPlotStyle backup = ImPlot::GetStyle();
@@ -258,22 +255,23 @@ int main(int, char **) {
 
     ImGui::Begin("My Window");
     double x_axis[1000];
-//    double y_axis[1000];
+    //    double y_axis[1000];
     std::vector<double> y_axis;
     for (int i = 0; i < 1000; i++) {
       x_axis[i] = i;
-//      y_axis[i] = rng();
+      //      y_axis[i] = rng();
       y_axis.push_back(rng());
     }
     if (ImPlot::BeginPlot("My Plot")) {
-//      ImPlot::PlotLine("NormalDistribution 0,1", x_axis, y_axis, 1000, 0, sizeof(double)); //Example is just ("name", x, y, count)
+      //      ImPlot::PlotLine("NormalDistribution 0,1", x_axis, y_axis, 1000,
+      //      0, sizeof(double)); //Example is just ("name", x, y, count)
       ImPlot::PlotLine("Normal Distribution 0,1", x_axis, y_axis.data(), 1000);
       ImPlot::EndPlot();
     }
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                 1000.0f / ImGui::GetIO().Framerate,
                 ImGui::GetIO().Framerate);
-    //ImPlot::ShowBenchmarkTool();
+    // ImPlot::ShowBenchmarkTool();
     ImPlot::GetStyle() = backup;
     ImPlot::PopColormap();
 
@@ -282,14 +280,12 @@ int main(int, char **) {
     // other demo
     ImPlot::ShowDemo_BarGroups();
 
-
     // Rendering
     ImGui::Render();
     int display_w, display_h;
     glfwGetFramebufferSize(window, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
-    glClearColor(clear_color.x, clear_color.y, clear_color.z,
-                 clear_color.w);
+    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 

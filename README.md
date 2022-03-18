@@ -37,11 +37,13 @@ python python/get_data.py get_data_SP500
 ./build/example_gui_simulated
 ```
 
-With a decent GPU you can do hundreds of millions of simulations in a few seconds
-example: on a Titan V I got 1 billion simulations of 360 months in 16.3s
+With a decent GPU you can do hundreds of millions of simulations in a few seconds example: on a Titan V I got 1 billion
+simulations of 360 months in 16.3s
+
 ```
 build/example_gui_simulated_gpu 360 1000000000
 ```
+
 ### Using C++ only for simulation and write to disk, Python for visualization
 
 - simulation assuming stock market is Gaussian: `example_simulated`
@@ -59,7 +61,8 @@ python python/plot_returns.py plot_many_returns --dir=output
 2. plot with python & matplotlib
     1. plot single simulation: `python python/plot_returns.py plot_returns --csv_file=output/gaussian_00001.csv`
     2. plot many simulations: `python python/plot_returns.py plot_many_returns --dir=output/`
-    3. 
+    3.
+
 ## Implementation Checklist
 
 - [x] gaussian monthly returns, calculate fund value after N periods

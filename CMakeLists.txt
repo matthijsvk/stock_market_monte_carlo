@@ -46,7 +46,7 @@ if (NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD_REQUIRED OFF)
     set(CMAKE_CUDA_EXTENSIONS OFF)
     set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
-endif()
+endif ()
 ## find max architecture for available GPU
 ## adapted from https://stackoverflow.com/a/69353718
 include(FindCUDA/select_compute_arch)
@@ -88,10 +88,10 @@ FetchContent_MakeAvailable(
 find_package(Threads REQUIRED)
 
 find_package(OpenMP)
-if(OPENMP_FOUND)
+if (OPENMP_FOUND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
+endif ()
 
 ###############################################################################
 # other libraries: GUI stuff: https://alandefreitas.github.io/moderncpp/guis/imgui/

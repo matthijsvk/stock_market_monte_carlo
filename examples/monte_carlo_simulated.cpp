@@ -1,4 +1,5 @@
 #include <iostream>
+
 #include "stock_market_monte_carlo/simulations.h"
 
 int main() {
@@ -8,7 +9,8 @@ int main() {
   float initial_capital = 1000;
 
   float monthly_return_mean = 6.0 / 12;
-  float monthly_return_std = 10.0 / 12;  // 68% is within 1 std from mean, 95% within 2 std, 99.7% within 3 std
+  float monthly_return_std = 10.0 / 12;  // 68% is within 1 std from mean, 95%
+                                         // within 2 std, 99.7% within 3 std
 
   int n_years = 30;
   int n_months = 12 * n_years;
@@ -18,7 +20,11 @@ int main() {
   ///////////////////////////////////////////
 
   // many simulations
-  monte_carlo_gaussian(n_simulations, initial_capital, n_months, monthly_return_mean, monthly_return_std);
+  monte_carlo_gaussian(n_simulations,
+                       initial_capital,
+                       n_months,
+                       monthly_return_mean,
+                       monthly_return_std);
 
   /* single simulation
   one_simulation_gaussian("output1.csv",
@@ -47,4 +53,3 @@ int main() {
 
   return 0;
 }
-
