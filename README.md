@@ -18,7 +18,7 @@ sampled either from:
 
 C++ side: simulations + visualization with [DearImGui](https://github.com/ocornut/imgui)
 
-- requires g++-10 and CMake 3.20!
+- requires g++-10 and CMake 3.19!
     - `sudo pip install cmake --upgrade`
     - `sudo apt install -y g++-11 && update-alternatives --config g++`
 
@@ -34,15 +34,31 @@ pip install -r python/requirements.txt
 python python/get_data.py get_data_SP500
 
 # now run the simulations and visualize
-./build/example_gui_simulated
+# following runs for 30 years (360 months), 1000000 simulations
+./build/example_gui_simulated 360 1000000
+
+# for lots of simulations (>10 million), 'v2' stores only the final result, not all intermediate values.
+# this speeds things up and mostly saves lots of memory
+./build/example_gui_simulated_v2 360 10000000
 ```
 
-With a decent GPU you can do hundreds of millions of simulations in a few seconds example: on a Titan V I got 1 billion
-simulations of 360 months in 16.3s
+If you have an NVIDIA GPU with CUDA, there's also a GPU version which can do hundreds of millions of simulations in a few seconds. 
 
 ```
 build/example_gui_simulated_gpu 360 1000000000
 ```
+
+### Benchmarks: 360 periods, 10 000 000 simulations.
+
+CPU: i7-6850K, 6-core, 3.6GHz  
+GPU: NVIDIA Titan V
+
+|       Program       | Time (s) | Memory (GB) |
+|:-------------------:|:--------:|:-----------:|
+| CPU v1, single core |  141.3   |     ~28     |
+|   CPU v1, openMP    |   21.3   |     ~28     |
+|   CPU v2, openMP    |   15.4   |    ~0.5     |
+|         GPU         |   0.4    |    ~0.5     |
 
 ### Using C++ only for simulation and write to disk, Python for visualization
 
@@ -70,15 +86,15 @@ python python/plot_returns.py plot_many_returns --dir=output
 - [x] use historical return data
 - [x] visualization of fund value and average returns
 - [x] GUI with [imgui](https://github.com/ocornut/imgui) to see progress while simulating,
-  see [implot](https://github.com/epezent/implot) and also [mahi-gui](https://github.com/mahilab/mahi-gui)
+  see [implot](https://github.com/epezent/implot)
     - [x] separate threads for simulation and visualization
     - [x] slider for final amount & probability of reaching that
 - [x] c++ executable with arguments to avoid need to recompile
+- [x] Monte Carlo simulation with openMP
+- [x] Monte Carlo simulation on GPU
 - [ ] withdrawal strategies
     - [ ] taking out fixed amount every period
     - [ ] taking out some percentage every period
     - [ ] taking out varying percentage every period
-- [x] Monte Carlo simulation with openMP
-- [ ] Monte Carlo simulation on GPU
 
 

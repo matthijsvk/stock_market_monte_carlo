@@ -82,15 +82,16 @@ double rng_normal(float mean, float std) {
 
 void update_quartiles(std::vector<float> &quartiles,
                       std::vector<float> &vec,
-                      int n_el) {
+                      long n_el) {
   // for find quartiles we don't need to fully sort, just get the right value at
   // the right place this is O(n) instead of O(n log n) for full sorting, so a
   // big difference for large vectors!
   // https://stackoverflow.com/questions/11964552/finding-quartiles
 
-  // nth_element modifies the vector, which messes things up when using openMP
-  // make a copy so we don't modify the original values
-  std::vector<float> vec2(n_el);
+  //    // nth_element modifies the vector, which messes things up when using
+  //    openMP
+  //    // make a copy so we don't modify the original values
+  std::vector<float> vec2(n_el + 1);
   std::copy(vec.begin(), vec.begin() + n_el, vec2.begin());
 
   auto const Q1 = n_el / 4;
@@ -109,7 +110,10 @@ void update_quartiles(std::vector<float> &quartiles,
   quartiles = {min_value, vec2.at(Q1), vec2.at(Q2), vec2.at(Q3), max_value};
 }
 
-void update_mean_std(float &mean, float &std, std::vector<float> &v, int n_el) {
+void update_mean_std(float &mean,
+                     float &std,
+                     std::vector<float> &v,
+                     long n_el) {
   double sum = std::accumulate(v.begin(), v.begin() + n_el, 0.0);
   mean = sum / n_el;
 
@@ -118,11 +122,11 @@ void update_mean_std(float &mean, float &std, std::vector<float> &v, int n_el) {
   std = std::sqrt(sqsum / n_el - mean * mean);
 }
 
-int update_count_below_min(float &min_final_amount,
-                           const std::vector<float> &final_values,
-                           int n_simulations) {
-  int count_below_min = 0;
-  for (int i = 0; i < n_simulations; i++) {
+long update_count_below_min(float &min_final_amount,
+                            const std::vector<float> &final_values,
+                            long n_simulations) {
+  long count_below_min = 0;
+  for (long i = 0; i < n_simulations; i++) {
     float val = final_values[i];
     if (val == -1) {
       // TODO this should never happen, but it does with openMP....
@@ -138,8 +142,8 @@ int main(int argc, char *argv[]) {
   long max_n_simulations, n_periods;
   if (argc == 3) {
     char *end;
-    n_periods = int(std::strtol(argv[1], &end, 10));
-    max_n_simulations = int(std::strtol(argv[2], &end, 10));
+    n_periods = long(std::strtol(argv[1], &end, 10));
+    max_n_simulations = long(std::strtol(argv[2], &end, 10));
     fmt::print("n_periods: {} | max_n_simulations: {}\n",
                n_periods,
                max_n_simulations);
@@ -155,14 +159,6 @@ int main(int argc, char *argv[]) {
   //-------------------------------------
   float initial_capital = 1000;
 
-  // limit max shown for plotting?
-  long max_displayed_plots = 100;
-
-  // buffers to store results
-  std::vector<std::vector<float>> mc_data(max_n_simulations,
-                                          std::vector<float>(n_periods));
-  std::vector<float> final_values(max_n_simulations, -1);
-
   ////simulate by sampling from historical monthly returns
   std::string historical_returns_csv = "data/SP500_monthly_returns.csv";
   std::vector<float> historical_returns =
@@ -170,32 +166,57 @@ int main(int argc, char *argv[]) {
   fmt::print("Number of historical data points from which we can sample: {}\n",
              historical_returns.size());
 
-  // MC sampling in background thread:
-  // https://hackernoon.com/learn-c-multi-threading-in-5-minutes-8b881c92941f
-  std::atomic<long> n_simulations =0;  // shared between openMP threads
-  std::thread t1(mc_simulations_keepdata,
+  // limit max shown for plotting?
+  long max_displayed_plots = 25;
+
+  // buffers to store results
+  std::vector<float> final_values(max_n_simulations, -1);
+  // just for visualization
+  // calculate 10x more than we show, so we can do random sample to indicate
+  // calculations are still going on
+  long max_n_visualisation = 10 * max_displayed_plots;
+  std::vector<float> final_values_visualized(max_n_visualisation, -1);
+  std::vector<std::vector<float>> mc_data(max_n_visualisation,
+                                          std::vector<float>(n_periods + 1));
+
+  // for statistics: compute <n_simulations> final values
+  std::atomic<long> n_simulations = 0;
+  std::thread t1(mc_simulations,
                  std::ref(n_simulations),
                  max_n_simulations,
                  n_periods,
                  initial_capital,
                  std::ref(historical_returns),
-                 std::ref(mc_data),
                  std::ref(final_values));
-  int count_below_min;
-  //    //DEBUG
-  //    t1.join();
-  //    int count_below_min = 0;
-  //    for (int i = 0; i < n_simulations; i++) { // TODO i<n_simulations?
-  //        if (final_values[i] == 0)
-  //            fmt::print("final value[{}] == 0!\n", i);
-  //        if (final_values[i] < initial_capital)
-  //            count_below_min++;
-  //    }
-  //    fmt::print("{:d}/{:d} ({:.4f}%) are below target final value",
-  //                count_below_min, n_simulations,
-  //                100 * float(count_below_min) / n_simulations);
-  //    exit(0);
-  //    //END DEBUG
+
+  // for visualization: compute <max_displayed_plots>, saving entire trajectory
+  std::atomic<long> n_simulations_visualized = 0;
+  std::thread t2(mc_simulations_keepdata,
+                 std::ref(n_simulations_visualized),
+                 max_n_visualisation,
+                 n_periods,
+                 initial_capital,
+                 std::ref(historical_returns),
+                 std::ref(mc_data),
+                 std::ref(final_values_visualized));
+  long count_below_min;
+
+  //  //DEBUG
+  //  t1.join();
+  //  count_below_min = 0;
+  //  for (long i = 0; i < n_simulations; i++) { // TODO i<n_simulations?
+  ////    fmt::print("final value {}: {}\n", i, final_values[i]);
+  ////    fmt::print("mc_data final : {}\n", i, mc_data[i][n_periods+1]);
+  ////    if (final_values[i] == -1)
+  ////      fmt::print("final value[{}] == -1!\n", i);
+  //    if (final_values[i] < initial_capital)
+  //      count_below_min++;
+  //  }
+  //  fmt::print("{:d}/{:d} ({:.4f}%) are below target final value",
+  //             count_below_min, n_simulations,
+  //             100 * float(count_below_min) / n_simulations);
+  //  exit(0);
+  // END DEBUG
 
   //-------------------------------------
   // GUI stuff
@@ -234,7 +255,7 @@ int main(int argc, char *argv[]) {
   int window_height = 720;
   GLFWwindow *window = glfwCreateWindow(window_width,
                                         window_height,
-                                        "MC Stock Market simulation - CPU",
+                                        "MC Stock Market simulation - GPU",
                                         nullptr,
                                         nullptr);
   if (window == nullptr) return 1;
@@ -287,11 +308,11 @@ int main(int argc, char *argv[]) {
   // to update count only if something changes
   long prev_n_simulations = -1;
   float prev_min_final_amount = -1;
+  // UI user configurable parameters
   float min_final_amount = initial_capital;
   std::vector<float> quartiles(5, 0);
   float mean = -1, std = -1;
   float max_value_slider = 10000;
-
   while (!glfwWindowShouldClose(window)) {
     // Poll and handle events (inputs, window resize, etc.)
     // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to
@@ -322,7 +343,6 @@ int main(int argc, char *argv[]) {
 
     // horizontal line for desired final amount, and to calculate how many
     // simulations are below this
-
     ImGui::Indent(0.25 * window_width);
     ImGui::SetNextItemWidth(0.5 * window_width);
     ImGui::SliderFloat(
@@ -335,7 +355,7 @@ int main(int argc, char *argv[]) {
                       "%.1f");
     ImGui::Unindent(0.25 * window_width);
 
-    // recompute only if something changes
+    //        // recompute only if something changes
     if ((prev_n_simulations != n_simulations) ||
         (prev_min_final_amount != min_final_amount)) {
       fmt::print("Update detected! Recomputing statistics... ");
@@ -365,15 +385,15 @@ int main(int argc, char *argv[]) {
                         ImPlotAxisFlags_AutoFit,
                         ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_LockMin);
 
-      // plot all lines in PlotBuffer.
+      // plot all lines
       // Limit number for performance & stop changing if all simulations are
       // done
       for (int n_shown = 0; n_shown < max_displayed_plots; n_shown++) {
-        if (n_shown >= n_simulations) break;
+        if (n_shown >= n_simulations_visualized) break;
         int idx = n_shown;
         if (n_simulations < max_n_simulations &&
-            n_simulations > max_displayed_plots)
-          idx = int(rng_uniform(0, int(mc_data.size())));
+            n_simulations_visualized > max_displayed_plots)
+          idx = int(rng_uniform(0, mc_data.size()));
 
         ImPlot::PlotLine(fmt::format("Simulation {}", idx).c_str(),
                          mc_data.at(idx).data(),
@@ -396,7 +416,7 @@ int main(int argc, char *argv[]) {
         fmt::format("#simulations: {:d}/{:d}", n_simulations, max_n_simulations)
             .c_str());
     ImGui::Text("Application average %.1f FPS", ImGui::GetIO().Framerate);
-    //
+
     // calculate and print `statistics
     ImGui::Text("%s",
                 fmt::format("min: {:.2f} | Q1: {:.2f} | median: {:.2f} | Q3: "
@@ -434,8 +454,9 @@ int main(int argc, char *argv[]) {
 
   // Cleanup
   t1.join();
+  t2.join();
   count_below_min = 0;
-  for (int i = 0; i < n_simulations; i++) {
+  for (long i = 0; i < n_simulations; i++) {
     if (final_values[i] < initial_capital) count_below_min++;
   }
   fmt::print("{:d}/{:d} ({:.4f}%) are below target final value\n",

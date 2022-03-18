@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
   // CPU computes <max_displayed_plots> for visualizlation, saving entire
   // trajectory
   std::atomic<long> n_simulations_visualized = 0;
-  std::thread t2(mc_simulations,
+  std::thread t2(mc_simulations_keepdata,
                  std::ref(n_simulations_visualized),
                  max_n_visualisation,
                  n_periods,
@@ -457,7 +457,8 @@ int main(int argc, char *argv[]) {
 
   // Cleanup
   t1.join();
-  //  t2.join();
+  t2.join();
+
   count_below_min = 0;
   for (long i = 0; i < n_simulations; i++) {
     if (final_values[i] < initial_capital) count_below_min++;

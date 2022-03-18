@@ -40,7 +40,15 @@ void monte_carlo_historical(long n,
                             long n_periods,
                             std::string csv_fpath);
 
+// stores only final values
 void mc_simulations(std::atomic<long> &n_simulations,
+                    long max_n_simulations,
+                    long n_periods,
+                    float initial_capital,
+                    std::vector<float> &historical_returns,
+                    std::vector<float> &final_values);
+// keeps everything stored in mc_data
+void mc_simulations_keepdata(std::atomic<long> &n_simulations,
                     long max_n_simulations,
                     long n_periods,
                     float initial_capital,
