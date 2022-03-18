@@ -37,6 +37,11 @@ python python/get_data.py get_data_SP500
 ./build/example_gui_simulated
 ```
 
+With a decent GPU you can do hundreds of millions of simulations in a few seconds
+example: on a Titan V I got 1 billion simulations of 360 months in 16.3s
+```
+build/example_gui_simulated_gpu 360 1000000000
+```
 ### Using C++ only for simulation and write to disk, Python for visualization
 
 - simulation assuming stock market is Gaussian: `example_simulated`

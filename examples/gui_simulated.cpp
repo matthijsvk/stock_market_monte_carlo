@@ -80,57 +80,6 @@ double rng_normal(float mean, float std) {
     return dist(e2);
 }
 
-void mc_simulations(std::atomic<int> &n_simulations,
-                    const int max_n_simulations,
-                    const int n_periods, const float initial_capital,
-                    std::vector<float> &historical_returns,
-                    std::vector<std::vector<float>> &mc_data,
-                    std::vector<float> &final_values) {
-
-//    //pre-allocate so we can do parallel for
-
-//    float data[max_n_simulations][n_periods];
-//    float final_vals[max_n_simulations];
-
-    fmt::print("final_values.size(): {}\n", final_values.size());
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
-    int block_size = 1000;
-    int n_blocks = std::ceil(max_n_simulations / float(block_size));
-
-    // leave 1 core for visualization
-    const int num_cpu_cores = std::max(1, int(std::thread::hardware_concurrency() -1));
-    fmt::print("number of cpu cores: {}\n", num_cpu_cores);
-
-    #pragma omp parallel for schedule(dynamic) num_threads(num_cpu_cores)
-    for (int n_sims_blocks = 0; n_sims_blocks < n_blocks; n_sims_blocks++) {
-        // last block may not contain full 'block_size' elements!
-        int block_id = n_sims_blocks * block_size;
-        int this_block_size = std::min(block_size, max_n_simulations - block_id);
-//        fmt::print("Block id {}, block_id: {}, this_block_size: {}\n", n_sims_blocks, block_id, this_block_size);
-
-        for (int n_sims = 0; n_sims < this_block_size; n_sims++) {
-            int id = block_id + n_sims;
-
-            // do calculations
-            std::vector<float> returns = sample_returns_historical(n_periods, historical_returns);
-            std::vector<float> values = many_updates(initial_capital, returns, n_periods);
-            //assert (returns.size() == values.size());
-
-            final_values[id] = values.back();
-            mc_data[id] = values;
-
-//            fmt::print("sim id: {:d} \n", id);
-        }
-        n_simulations += this_block_size;
-        fmt::print("{:d}/{:d} simulations done\n", n_simulations, max_n_simulations);
-    }
-    assert(n_simulations = max_n_simulations); // must be true here
-
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
-    fmt::print("All {} simulation done in {} s!\n", n_simulations, timediff / 1000.0);
-}
 
 void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, int n_el) {
     // for find quartiles we don't need to fully sort, just get the right value at the right place
@@ -155,8 +104,6 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, in
     float min_value = *min_element(vec2.begin(), last_it);
     float max_value = *max_element(vec2.begin(), last_it);
 
-//    std::vec2tor<float> out = {min_value, vec2.at(Q1), vec2.at(Q2), vec2.at(Q3), max_value};
-//    return out;
     quartiles = {min_value, vec2.at(Q1), vec2.at(Q2), vec2.at(Q3), max_value};
 }
 
@@ -187,7 +134,7 @@ int update_count_below_min(float &min_final_amount,
 int main(int argc, char *argv[]) {
 
     fmt::print("argc: {}\n", argc);
-    int max_n_simulations, n_periods;
+    long max_n_simulations, n_periods;
     if (argc == 3) {
         char *end;
         n_periods = int(std::strtol(argv[1], &end, 10));
@@ -204,7 +151,7 @@ int main(int argc, char *argv[]) {
     float initial_capital = 1000;
 
     // limit max shown for plotting?
-    int max_displayed_plots = 100;
+    long max_displayed_plots = 100;
 
     // buffers to store results
     std::vector<std::vector<float>> mc_data(max_n_simulations, std::vector<float>(n_periods));
@@ -216,7 +163,7 @@ int main(int argc, char *argv[]) {
     fmt::print("Number of historical data points from which we can sample: {}\n", historical_returns.size());
 
     // MC sampling in background thread: https://hackernoon.com/learn-c-multi-threading-in-5-minutes-8b881c92941f
-    std::atomic<int> n_simulations = 0; // atomic b/c shared between openMP threads
+    std::atomic<long> n_simulations = 0; // atomic b/c shared between openMP threads
     std::thread t1(mc_simulations,
                    std::ref(n_simulations),
                    max_n_simulations,
@@ -275,8 +222,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     // Create window with graphics context
-    GLFWwindow *window = glfwCreateWindow(1280, 720,
-                                          "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(1280, 720,"MC Stock Market simulation - CPU", nullptr, nullptr);
     if (window == nullptr)
         return 1;
     glfwMakeContextCurrent(window);
