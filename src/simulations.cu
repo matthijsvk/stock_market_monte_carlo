@@ -2,6 +2,10 @@
 #include <iostream>
 #include <curand.h>
 #include <curand_kernel.h>
+#include <atomic>
+#include <vector>
+#include <chrono>
+#include <fmt/core.h>
 
 //#define DEBUG
 
@@ -9,7 +13,7 @@ __device__ void update_fund(float fund_value, float period_return, float &next_v
   next_value = fund_value * (float(100.0) + period_return) / 100;
 }
 
-__global__ void __many_updates_gpu_kernel(float *returns, float *totals, int n_periods) {
+__global__ void __many_updates_gpu_kernel(float *returns, float *totals, long n_periods) {
 
   for (int i = 0; i < n_periods; i++) {
     update_fund(totals[i], returns[i], totals[i + 1]);
@@ -17,7 +21,7 @@ __global__ void __many_updates_gpu_kernel(float *returns, float *totals, int n_p
 }
 
 // host function that allocates memory and calls the GPU
-void __many_updates_gpu(float *returns, float *totals, int n) {
+void __many_updates_gpu(float *returns, float *totals, long n) {
 #ifdef DEBUG
   printf("Allocating device memory on host..\n");
 #endif
@@ -56,17 +60,18 @@ void __many_updates_gpu(float *returns, float *totals, int n) {
 
 ////////////////////////////////
 __global__ void mc_simulations_gpu_kernel(float *historical_returns,
-                                          const int n_historical_returns,
+                                          const long n_historical_returns,
                                           float *totals,
-                                          const int max_n_simulations,
-                                          const int n_periods){
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
+                                          const long max_n_simulations,
+                                          const long n_periods) {
+  // threads in a block are on the same SM
+  long id = blockIdx.x * blockDim.x + threadIdx.x;
   if (id >= max_n_simulations)
     return;
 
   // http://ianfinlayson.net/class/cpsc425/notes/cuda-random
   curandState_t state;
-  curand_init(id, /* the seed can be the same for each core, here we pass the time in from the CPU */
+  curand_init(12345, /* the seed can be the same for each core, here we pass the time in from the CPU */
               id, /* the sequence number should be different for each core (unless you want all
                              cores to get the same sequence of numbers for some reason - use thread id! */
               0, /* the offset is how much extra we advance in the sequence for each call, can be 0 */
@@ -74,18 +79,17 @@ __global__ void mc_simulations_gpu_kernel(float *historical_returns,
 
   // every step, sample random return and update total
   for (int i = 0; i < n_periods; i++) {
-    int return_idx = int(n_historical_returns * curand_uniform(&state));
-    int total_idx = id * (n_periods + 1) + i;
-    update_fund(totals[total_idx], historical_returns[return_idx], totals[total_idx+1]);
+    long return_idx = long(n_historical_returns * curand_uniform(&state));
+    update_fund(totals[id], historical_returns[return_idx], totals[id]);
 //    printf("%f -> %f\n", this_return, totals[id+i+1]);
   }
 }
 
 void _mc_simulations_gpu(float *historical_returns,
-                         const int n_historical_returns,
+                         const long n_historical_returns,
                          float *totals,
-                         const int max_n_simulations,
-                         const int n_periods) {
+                         const long max_n_simulations,
+                         const long n_periods) {
 
   int block_size = 1024;
   int n_blocks = std::ceil(max_n_simulations / float(block_size));
@@ -96,8 +100,8 @@ void _mc_simulations_gpu(float *historical_returns,
 
   //allocations
   float *historical_returns_d, *totals_d;
-  int memsize_hist_returns = n_historical_returns * sizeof(float);
-  int memsize_totals = max_n_simulations * (n_periods+1) * sizeof(float);
+  long memsize_hist_returns = n_historical_returns * sizeof(float);
+  long memsize_totals = max_n_simulations * sizeof(float);
 
   cudaMalloc((void **) &historical_returns_d, memsize_hist_returns);
   cudaMalloc((void **) &totals_d, memsize_totals);
@@ -114,4 +118,38 @@ void _mc_simulations_gpu(float *historical_returns,
   cudaMemcpy(totals, totals_d, memsize_totals, cudaMemcpyDeviceToHost);
   cudaFree(historical_returns_d);
   cudaFree(totals_d);
+}
+
+void mc_simulations_gpu(std::atomic<long> &n_simulations,
+                        const long max_n_simulations,
+                        const long n_periods,
+                        const float initial_capital,
+                        std::vector<float> &historical_returns,
+                        std::vector<float> &final_values) {
+
+  std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+  // initialize output data array
+  // must create as vector b/c: float total[max_n * n_periods] creates StackOverflow (SegFault) b/c on stack. Vectors are on heap
+  std::vector<float> totals(max_n_simulations, initial_capital);
+  float *totals_arr = &totals[0];
+  float *historical_returns_arr = &historical_returns[0];
+
+  _mc_simulations_gpu(historical_returns_arr,
+                      historical_returns.size(),
+                      totals_arr,
+                      max_n_simulations,
+                      n_periods);
+
+  // save to vectors for further processing TODO avoid copy?
+  for (long i = 0; i < max_n_simulations; i++) {
+    final_values[i] = totals[i];
+  }
+  n_simulations = max_n_simulations; // TODO Increment inside GPU kernel?
+
+  //assert(n_simulations = max_n_simulations); // must be true here
+
+  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  fmt::print("All {} simulation done in {} s!\n", n_simulations, timediff / 1000.0);
 }
