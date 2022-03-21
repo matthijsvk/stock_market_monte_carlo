@@ -346,7 +346,7 @@ int main(int argc, char *argv[]) {
     ImGui::Indent(0.25 * window_width);
     ImGui::SetNextItemWidth(0.5 * window_width);
     ImGui::SliderFloat(
-        "Desired final amount?", &min_final_amount, 0, max_value_slider);
+        "Target?", &min_final_amount, 0, max_value_slider);
     ImGui::SetNextItemWidth(0.5 * window_width);
     ImGui::InputFloat("Slider Value",
                       &min_final_amount,
