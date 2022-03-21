@@ -140,11 +140,10 @@ void mc_simulations_gpu(std::atomic<long> &n_simulations,
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
 
-  // initialize output data array
-  // must create as vector b/c: float total[max_n * n_periods] creates
-  // StackOverflow (SegFault) b/c on stack. Vectors are on heap
-  std::vector<float> totals(max_n_simulations, initial_capital);
-  float *totals_arr = &totals[0];
+  // initialize output array
+  std::fill(final_values.begin(), final_values.end(), initial_capital);
+  // get pointers b/c GPU can't use std::vectors
+  float *totals_arr = &final_values[0];
   float *historical_returns_arr = &historical_returns[0];
 
   _mc_simulations_gpu(historical_returns_arr,
@@ -153,11 +152,7 @@ void mc_simulations_gpu(std::atomic<long> &n_simulations,
                       max_n_simulations,
                       n_periods);
 
-  // save to vectors for further processing TODO avoid copy?
-  for (long i = 0; i < max_n_simulations; i++) {
-    final_values[i] = totals[i];
-  }
-  n_simulations = max_n_simulations;  // TODO Increment inside GPU kernel?
+  n_simulations = max_n_simulations;  // TODO increment inside GPU kernel?
 
   // assert(n_simulations = max_n_simulations); // must be true here
 

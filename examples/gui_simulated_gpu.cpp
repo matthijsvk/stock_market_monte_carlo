@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
   long max_displayed_plots = 25;
 
   // buffers to store results
-  std::vector<float> final_values(max_n_simulations, -1);
+  std::vector<float> final_values(max_n_simulations, initial_capital);
   // just for visualization
   // calculate 10x more than we show, so we can do random sample to indicate
   // calculations are still going on
