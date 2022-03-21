@@ -77,7 +77,7 @@ endif ()
 # other libraries
 ###############################################################################
 
-FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG master)
+FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 8.1.1)
 FetchContent_Declare(csv GIT_REPOSITORY https://github.com/ben-strasser/fast-cpp-csv-parser.git GIT_TAG master)
 FetchContent_MakeAvailable(
         fmt
@@ -100,7 +100,7 @@ endif ()
 find_package(OpenGL)
 find_package(X11 REQUIRED)
 
-FetchContent_Declare(glad GIT_REPOSITORY https://github.com/Dav1dde/glad.git GIT_TAG master)
+FetchContent_Declare(glad GIT_REPOSITORY https://github.com/Dav1dde/glad.git GIT_TAG v0.1.36)
 FetchContent_MakeAvailable(glad)
 
 if (NOT TARGET glfw)
@@ -109,7 +109,7 @@ if (NOT TARGET glfw)
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-    FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG master)
+    FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG 3.3.6)
     FetchContent_MakeAvailable(glfw)
     target_compile_options(glfw PRIVATE -Wno-pedantic -Wno-missing-field-initializers -Wno-unused-parameter)
 endif ()
