@@ -5,3 +5,4 @@ output*
 cmake-*
 .idea
 *.csv
+*.ncu-rep

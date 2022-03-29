@@ -40,38 +40,6 @@ std::vector<float> many_updates(float fund_value,
   return v;
 }
 
-std::vector<float> many_updates_gpu(float fund_value,
-                                    std::vector<float> &returns,
-                                    long n_periods) {
-  // initialize arrays
-  float totals[n_periods + 1];
-  totals[0] = fund_value;
-
-  float *returns_arr =
-      &returns[0];  //  this remains valid as long as returns vector isn't
-                    //  expanded, which we don't do belo, so ok
-
-  // do the computations
-  __many_updates_gpu(returns_arr, totals, n_periods);
-
-  // convert to vector b/c it's expected TODO this is a copy?
-  std::vector<float> v(totals, totals + n_periods + 1);
-  return v;
-}
-
-// std::vector<float> many_updates(float fund_value, std::vector<float>
-// &returns) {
-//     std::vector<float> fund_values(returns.size()+1, 0);
-//     fund_values[0] = fund_value;
-//
-//     for (int i=0; i<returns.size(); i++) {
-//         float this_return = returns[i];
-//         float last_total = fund_values[i];
-//         float new_fund_value = update_fund(last_total, this_return);
-//         fund_values[i+1] = new_fund_value;
-//     }
-//     return fund_values;
-// }
 
 std::vector<float> sample_returns_gaussian(long n,
                                            float return_mean,

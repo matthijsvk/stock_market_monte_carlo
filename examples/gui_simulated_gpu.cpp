@@ -459,15 +459,16 @@ int main(int argc, char *argv[]) {
   t1.join();
   t2.join();
 
-  count_below_min = 0;
-  for (long i = 0; i < n_simulations; i++) {
-    if (final_values[i] < initial_capital) count_below_min++;
-  }
-  fmt::print("{:d}/{:d} ({:.4f}%) are below target final value\n",
-             count_below_min,
-             n_simulations,
-             100 * float(count_below_min) / n_simulations);
-  write_vector_file("results.csv", final_values);
+  //// we don't do this b/c it takes too long with large numbers of simulations
+//  count_below_min = 0;
+//  for (long i = 0; i < n_simulations; i++) {
+//    if (final_values[i] < initial_capital) count_below_min++;
+//  }
+//  fmt::print("{:d}/{:d} ({:.4f}%) are below target final value\n",
+//             count_below_min,
+//             n_simulations,
+//             100 * float(count_below_min) / n_simulations);
+//  write_vector_file("results.csv", final_values);
 
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();

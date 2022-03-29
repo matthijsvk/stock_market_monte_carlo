@@ -1,5 +1,13 @@
 #include <curand.h>
 #include <curand_kernel.h>
+#include <string>
+#include <vector>
+#include <numeric>
+#include <stdexcept>
+#include <typeinfo>
+#include <cuda_runtime.h>
+#include <cooperative_groups.h>
+
 #include <fmt/core.h>
 
 #include <atomic>
@@ -11,85 +19,60 @@
 
 //#define DEBUG
 
-__device__ void update_fund(float fund_value,
+// RNG init kernel
+__global__ void initRNG(curandState *const rngStates, const unsigned int seed) {
+  // Determine thread ID
+  unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+  // Initialise the RNG
+  curand_init(seed, tid, 0, &rngStates[tid]);
+}
+
+__device__ inline void update_fund(float fund_value,
                             float period_return,
                             float &next_value) {
   next_value = fund_value * (float(100.0) + period_return) / 100;
 }
 
-__global__ void __many_updates_gpu_kernel(float *returns,
-                                          float *totals,
-                                          long n_periods) {
-  for (int i = 0; i < n_periods; i++) {
-    update_fund(totals[i], returns[i], totals[i + 1]);
-  }
-}
-
-// host function that allocates memory and calls the GPU
-void __many_updates_gpu(float *returns, float *totals, long n) {
-#ifdef DEBUG
-  printf("Allocating device memory on host..\n");
-#endif
-  float *returns_d, *totals_d;
-  cudaMalloc((void **)&returns_d, n * sizeof(float));
-  cudaMalloc((void **)&totals_d, (n + 1) * sizeof(float));
-
-#ifdef DEBUG
-  printf("Copying to device..\n");
-#endif
-  cudaMemcpy(returns_d, returns, n * sizeof(float), cudaMemcpyHostToDevice);
-  cudaMemcpy(totals_d, totals, (n + 1) * sizeof(float), cudaMemcpyHostToDevice);
-
-  int block_size = 32;  // should always be multiple of 32, max 1024
-  int block_no = ceil(float(n) / block_size);
-  dim3 grid(block_no, 1, 1);
-  dim3 block(block_size, 1, 1);  // max block dimensions: [1024,1024,64]
-
-#ifdef DEBUG
-  printf("block_no: %d, block_size: %d | \n", block_no, block_size);
-  clock_t start_d = clock();
-#endif
-  __many_updates_gpu_kernel<<<grid, block>>>(returns_d, totals_d, n);
-  cudaDeviceSynchronize();
-
-#ifdef DEBUG
-  clock_t end_d = clock();
-  double time_d = (double)(end_d - start_d) / CLOCKS_PER_SEC;
-  printf("GPU time: %f\n", time_d);
-#endif
-
-  cudaMemcpy(totals, totals_d, (n + 1) * sizeof(float), cudaMemcpyDeviceToHost);
-  cudaFree(returns_d);
-  cudaFree(totals_d);
-}
 
 ////////////////////////////////
 __global__ void mc_simulations_gpu_kernel(float *historical_returns,
                                           const long n_historical_returns,
                                           float *totals,
                                           const long max_n_simulations,
-                                          const long n_periods) {
+                                          const long n_periods
+//                                          curandState *const rngStates
+                                          ) {
   // threads in a block are on the same SM
-  long id = blockIdx.x * blockDim.x + threadIdx.x;
-  if (id >= max_n_simulations) return;
-  if (id % (max_n_simulations / 10) == 0)
-    printf("Simulation %ld/%ld\n", id, max_n_simulations);
+  unsigned int bid = blockIdx.x;
+  unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  unsigned int step = gridDim.x * blockDim.x;
+  unsigned int wid = threadIdx.x / warpSize;
 
-  // http://ianfinlayson.net/class/cpsc425/notes/cuda-random
-  curandState_t state;
-  curand_init(12345, /* the seed can be the same for each core, here we pass the
-                        time in from the CPU */
-              id,    /* the sequence number should be different for each core
-                        (unless you want all    cores to get the same sequence of
-                        numbers for some reason - use thread id! */
-              0, /* the offset is how much extra we advance in the sequence for
-                    each call, can be 0 */
-              &state);
+  if (tid >= max_n_simulations) return;
+
+  if (tid % (max_n_simulations / 10) == 0)
+    printf("Simulation %d/%ld\n", tid, max_n_simulations);
+
+  // shmem buffer for historical returns, 1 warp in block loads it
+  __shared__ float buffer[1200];
+  if (threadIdx.x < n_historical_returns) {
+    for(int i = threadIdx.x; i  < n_historical_returns; i += warpSize) {
+      buffer[i] = historical_returns[i];
+    }
+  }
+  __syncthreads();
+
+  // Initialise the RNG
+//  curandState localState = rngStates[tid];
+    curandState localState;
+    curand_init(1234, tid, 0, &localState);
 
   // every step, sample random return and update total
-  for (int i = 0; i < n_periods; i++) {
-    long return_idx = long(n_historical_returns * curand_uniform(&state));
-    update_fund(totals[id], historical_returns[return_idx], totals[id]);
+  for (unsigned int i = 0; i < n_periods; i++) {
+    unsigned int return_idx = int(n_historical_returns * curand_uniform(&localState));
+//    update_fund(totals[tid], historical_returns[return_idx], totals[tid]);
+    update_fund(totals[tid], buffer[return_idx], totals[tid]);
     //    printf("%f -> %f\n", this_return, totals[id+i+1]);
   }
 }
@@ -99,27 +82,58 @@ void _mc_simulations_gpu(float *historical_returns,
                          float *totals,
                          const long max_n_simulations,
                          const long n_periods) {
-  int block_size = 1024;
-  int n_blocks = std::ceil(max_n_simulations / float(block_size));
-  dim3 grid(n_blocks, 1, 1);
-  dim3 block(block_size, 1, 1);  // max block dimensions: [1024,1024,64]
-  printf("block_no: %d, block_size: %d | \n", n_blocks, block_size);
-  // TODO store historical_returns and/or totals in shared_memory?
+  struct cudaDeviceProp deviceProperties;
+  struct cudaFuncAttributes funcAttributes;
+
+  cudaGetDeviceProperties(&deviceProperties, 0);
+
+  int block_size = 256; // TODO how to set?
+  dim3 block, grid;
+  block.x = block_size;
+  grid.x = (max_n_simulations + block_size - 1 ) / block_size;
+
+  printf("block_no: %d, block_size: %d | warps/block: %d \n", grid.x, block.x, block.x / 32);
+  //-----------------------------------------------------------
+
+  cudaFuncGetAttributes(&funcAttributes, initRNG);
+  if (block.x > (unsigned int)funcAttributes.maxThreadsPerBlock) {
+    throw std::runtime_error(
+        "Block X dimension is too large for initRNG kernel");
+  }
+
+  cudaFuncGetAttributes(&funcAttributes, mc_simulations_gpu_kernel);
+  if (block.x > (unsigned int)funcAttributes.maxThreadsPerBlock) {
+    throw std::runtime_error(
+        "Block X dimension is too large for mc_simulations_gpu_kernel");
+  }
+
+  // Check the dimensions are valid
+  if (block.x > (unsigned int)deviceProperties.maxThreadsDim[0]) {
+    throw std::runtime_error("Block X dimension is too large for device");
+  }
+
+  if (grid.x > (unsigned int)deviceProperties.maxGridSize[0]) {
+    throw std::runtime_error("Grid X dimension is too large for device");
+  }
+
+  //-----------------------------------------------------------
+
+//  curandState *d_rngStates = 0;
+//  cudaMalloc((void **)&d_rngStates, grid.x * block.x * sizeof(curandState));
 
   // allocations
   float *historical_returns_d, *totals_d;
   long memsize_hist_returns = n_historical_returns * sizeof(float);
   long memsize_totals = max_n_simulations * sizeof(float);
 
-  cudaMalloc((void **)&historical_returns_d, memsize_hist_returns);
-  cudaMalloc((void **)&totals_d, memsize_totals);
-
-  cudaMemcpy(historical_returns_d,
-             historical_returns,
-             memsize_hist_returns,
-             cudaMemcpyHostToDevice);
+  cudaMalloc(&historical_returns_d, memsize_hist_returns);
+  cudaMalloc(&totals_d, memsize_totals);
+  cudaMemcpy(historical_returns_d, historical_returns, memsize_hist_returns, cudaMemcpyHostToDevice);
   cudaMemcpy(totals_d, totals, memsize_totals, cudaMemcpyHostToDevice);
 
+//  // Initialise RNG
+//  initRNG<<<grid, block>>>(d_rngStates, 12345); // TODO seed?
+  // launch kernel!
   mc_simulations_gpu_kernel<<<grid, block>>>(historical_returns_d,
                                              n_historical_returns,
                                              totals_d,
@@ -127,6 +141,7 @@ void _mc_simulations_gpu(float *historical_returns,
                                              n_periods);
   cudaDeviceSynchronize();
   cudaMemcpy(totals, totals_d, memsize_totals, cudaMemcpyDeviceToHost);
+//  cudaFree(d_rngStates);
   cudaFree(historical_returns_d);
   cudaFree(totals_d);
 }

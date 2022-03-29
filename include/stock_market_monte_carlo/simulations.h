@@ -57,11 +57,6 @@ void mc_simulations_keepdata(std::atomic<long> &n_simulations,
                     std::vector<float> &final_values);
 
 // GPU
-void __many_updates_gpu(float *returns, float *totals, long n);
-std::vector<float> many_updates_gpu(float fund_value,
-                                    std::vector<float> &returns,
-                                    long n_updates);
-
 void _mc_simulations_gpu(float *historical_returns,
                          long n_historical_returns,
                          float *totals,
