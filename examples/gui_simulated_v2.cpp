@@ -82,7 +82,7 @@ double rng_normal(float mean, float std) {
 
 void update_quartiles(std::vector<float> &quartiles,
                       std::vector<float> &vec,
-                      long n_el) {
+                      unsigned long n_el) {
   // for find quartiles we don't need to fully sort, just get the right value at
   // the right place this is O(n) instead of O(n log n) for full sorting, so a
   // big difference for large vectors!
@@ -113,7 +113,7 @@ void update_quartiles(std::vector<float> &quartiles,
 void update_mean_std(float &mean,
                      float &std,
                      std::vector<float> &v,
-                     long n_el) {
+                     unsigned long n_el) {
   double sum = std::accumulate(v.begin(), v.begin() + n_el, 0.0);
   mean = sum / n_el;
 
@@ -122,11 +122,11 @@ void update_mean_std(float &mean,
   std = std::sqrt(sqsum / n_el - mean * mean);
 }
 
-long update_count_below_min(float &min_final_amount,
+unsigned long update_count_below_min(float &min_final_amount,
                             const std::vector<float> &final_values,
-                            long n_simulations) {
+                            unsigned long n_simulations) {
   long count_below_min = 0;
-  for (long i = 0; i < n_simulations; i++) {
+  for (unsigned long i = 0; i < n_simulations; i++) {
     float val = final_values[i];
     if (val == -1) {
       // TODO this should never happen, but it does with openMP....
@@ -139,7 +139,8 @@ long update_count_below_min(float &min_final_amount,
 
 int main(int argc, char *argv[]) {
   fmt::print("argc: {}\n", argc);
-  long max_n_simulations, n_periods;
+  unsigned long max_n_simulations;
+  unsigned int n_periods;
   if (argc == 3) {
     char *end;
     n_periods = long(std::strtol(argv[1], &end, 10));
@@ -167,20 +168,20 @@ int main(int argc, char *argv[]) {
              historical_returns.size());
 
   // limit max shown for plotting?
-  long max_displayed_plots = 25;
+  unsigned long max_displayed_plots = 25;
 
   // buffers to store results
   std::vector<float> final_values(max_n_simulations, -1);
   // just for visualization
   // calculate 10x more than we show, so we can do random sample to indicate
   // calculations are still going on
-  long max_n_visualisation = 10 * max_displayed_plots;
+  unsigned long max_n_visualisation = 10 * max_displayed_plots;
   std::vector<float> final_values_visualized(max_n_visualisation, -1);
   std::vector<std::vector<float>> mc_data(max_n_visualisation,
                                           std::vector<float>(n_periods + 1));
 
   // for statistics: compute <n_simulations> final values
-  std::atomic<long> n_simulations = 0;
+  std::atomic<unsigned long> n_simulations = 0;
   std::thread t1(mc_simulations,
                  std::ref(n_simulations),
                  max_n_simulations,
@@ -190,7 +191,7 @@ int main(int argc, char *argv[]) {
                  std::ref(final_values));
 
   // for visualization: compute <max_displayed_plots>, saving entire trajectory
-  std::atomic<long> n_simulations_visualized = 0;
+  std::atomic<unsigned long> n_simulations_visualized = 0;
   std::thread t2(mc_simulations_keepdata,
                  std::ref(n_simulations_visualized),
                  max_n_visualisation,
@@ -199,7 +200,7 @@ int main(int argc, char *argv[]) {
                  std::ref(historical_returns),
                  std::ref(mc_data),
                  std::ref(final_values_visualized));
-  long count_below_min;
+  unsigned long count_below_min;
 
   //  //DEBUG
   //  t1.join();
@@ -456,7 +457,7 @@ int main(int argc, char *argv[]) {
   t1.join();
   t2.join();
   count_below_min = 0;
-  for (long i = 0; i < n_simulations; i++) {
+  for (unsigned long i = 0; i < n_simulations; i++) {
     if (final_values[i] < initial_capital) count_below_min++;
   }
   fmt::print("{:d}/{:d} ({:.4f}%) are below target final value\n",

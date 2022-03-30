@@ -113,7 +113,7 @@ void update_quartiles(std::vector<float> &quartiles,
 void update_mean_std(float &mean,
                      float &std,
                      std::vector<float> &v,
-                     long n_el) {
+                     unsigned long n_el) {
   double sum = std::accumulate(v.begin(), v.begin() + n_el, 0.0);
   mean = sum / n_el;
 
@@ -122,11 +122,11 @@ void update_mean_std(float &mean,
   std = std::sqrt(sqsum / n_el - mean * mean);
 }
 
-long update_count_below_min(float &min_final_amount,
+unsigned long update_count_below_min(float &min_final_amount,
                             const std::vector<float> &final_values,
-                            long n_simulations) {
-  long count_below_min = 0;
-  for (long i = 0; i < n_simulations; i++) {
+                            unsigned long n_simulations) {
+  unsigned long count_below_min = 0;
+  for (unsigned long i = 0; i < n_simulations; i++) {
     float val = final_values[i];
     if (val == -1) {
       // TODO this should never happen, but it does with openMP....
@@ -139,7 +139,8 @@ long update_count_below_min(float &min_final_amount,
 
 int main(int argc, char *argv[]) {
   fmt::print("argc: {}\n", argc);
-  long max_n_simulations, n_periods;
+  unsigned long max_n_simulations;
+  unsigned int n_periods;
   if (argc == 3) {
     char *end;
     n_periods = long(std::strtol(argv[1], &end, 10));
@@ -167,21 +168,21 @@ int main(int argc, char *argv[]) {
              historical_returns.size());
 
   // limit max shown for plotting?
-  long max_displayed_plots = 25;
+  unsigned long max_displayed_plots = 25;
 
   // buffers to store results
   std::vector<float> final_values(max_n_simulations, initial_capital);
   // just for visualization
   // calculate 10x more than we show, so we can do random sample to indicate
   // calculations are still going on
-  long max_n_visualisation = 10 * max_displayed_plots;
+  unsigned long max_n_visualisation = 10 * max_displayed_plots;
   std::vector<float> final_values_visualized(max_n_visualisation, -1);
   std::vector<std::vector<float>> mc_data(max_n_visualisation,
                                           std::vector<float>(n_periods + 1));
 
   // GPU MC sampling in background thread:
   // https://hackernoon.com/learn-c-multi-threading-in-5-minutes-8b881c92941f
-  std::atomic<long> n_simulations = 0;
+  std::atomic<unsigned long> n_simulations = 0;
   std::thread t1(mc_simulations_gpu,
                  std::ref(n_simulations),
                  max_n_simulations,
@@ -192,7 +193,7 @@ int main(int argc, char *argv[]) {
 
   // CPU computes <max_displayed_plots> for visualizlation, saving entire
   // trajectory
-  std::atomic<long> n_simulations_visualized = 0;
+  std::atomic<unsigned long> n_simulations_visualized = 0;
   std::thread t2(mc_simulations_keepdata,
                  std::ref(n_simulations_visualized),
                  max_n_visualisation,
@@ -202,12 +203,12 @@ int main(int argc, char *argv[]) {
                  std::ref(mc_data),
                  std::ref(final_values_visualized));
   // t2.join();
-  long count_below_min;
+  unsigned long count_below_min;
 
   //  //DEBUG
   //  t1.join();
   //  count_below_min = 0;
-  //  for (long i = 0; i < n_simulations; i++) { // TODO i<n_simulations?
+  //  for (long i = 0; i < n_simulations; i++) {
   ////    fmt::print("final value {}: {}\n", i, final_values[i]);
   ////    fmt::print("mc_data final : {}\n", i, mc_data[i][n_periods+1]);
   ////    if (final_values[i] == -1)

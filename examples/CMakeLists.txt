@@ -28,3 +28,9 @@ target_link_libraries(example_gpu PRIVATE stock_market_monte_carlo)
 add_executable(example_gui_simulated_gpu gui_simulated_gpu.cpp)
 target_link_libraries(example_gui_simulated_gpu PRIVATE stock_market_monte_carlo imgui implot)
 target_include_directories(example_gui_simulated_gpu PRIVATE "${implot_SOURCE_DIR}")
+
+add_executable(benchmark_mc_gpu benchmark_mc_gpu.cpp)
+target_link_libraries(benchmark_mc_gpu PRIVATE stock_market_monte_carlo benchmark::benchmark)
+
+add_executable(google_benchmark_mc_gpu google_benchmark_mc_gpu.cpp)
+target_link_libraries(google_benchmark_mc_gpu PRIVATE stock_market_monte_carlo benchmark::benchmark)

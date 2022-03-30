@@ -20,6 +20,7 @@ if (CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
 endif (CCACHE_FOUND)
 
+
 ###############################################################################
 # Build type and C++ compiler setup
 ###############################################################################
@@ -81,10 +82,16 @@ list(APPEND CUDA_NVCC_FLAGS "-lineinfo")
 
 FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 8.1.1)
 FetchContent_Declare(csv GIT_REPOSITORY https://github.com/ben-strasser/fast-cpp-csv-parser.git GIT_TAG master)
+
+# Externally provided libraries
+FetchContent_Declare(googletest GIT_REPOSITORY https://github.com/google/googletest.git GIT_TAG release-1.11.0)
+FetchContent_Declare(googlebenchmark GIT_REPOSITORY https://github.com/google/benchmark.git GIT_TAG master)
+
 FetchContent_MakeAvailable(
         fmt
         csv
-)
+        googletest
+        googlebenchmark)
 
 #set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -145,6 +152,8 @@ if (NOT implot_POPULATED)
     target_compile_definitions(implot PUBLIC IMPLOT_BACKEND_ENABLE_OPENGL3 IMGUI_IMPL_OPENGL_LOADER_GLAD)
     target_compile_options(implot PRIVATE -Wall -Wextra -pedantic -Werror -mavx2 -O2)
 endif ()
+
+
 
 
 ###############################################################################
