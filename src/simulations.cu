@@ -17,11 +17,11 @@
 // https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-37-efficient-random-number-generation-and-application
 // S1, S2, S3, and M are all constants, and z is part of the    // private
 // per-thread generator state.
-__device__ unsigned TausStep(unsigned &z, int S1, int S2, int S3, unsigned M) {
+__device__ unsigned TausStep(unsigned int &z, int S1, int S2, int S3, unsigned int M) {
   unsigned b = (((z << S1) ^ z) >> S2);
   return z = (((z & M) << S3) ^ b);
 }
-__device__ unsigned LCGStep(unsigned &z, unsigned A, unsigned C) {
+__device__ unsigned LCGStep(unsigned int &z, unsigned int A, unsigned int C) {
   return z = (A * z + C);
 }
 __device__ float HybridTaus(unsigned int &z1,
@@ -29,10 +29,10 @@ __device__ float HybridTaus(unsigned int &z1,
                             unsigned int &z3,
                             unsigned int &z4) {
   // Combined period is lcm(p1,p2,p3,p4)~ 2^121
-  return 2.3283064365387e-10 * (TausStep(z1, 13, 19, 12, 4294967294UL) ^
-                                TausStep(z2, 2, 25, 4, 4294967288UL) ^
-                                TausStep(z3, 3, 11, 17, 4294967280UL) ^
-                                LCGStep(z4, 1664525, 1013904223UL));
+  return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^
+      TausStep(z2, 2, 25, 4, 4294967288UL) ^
+      TausStep(z3, 3, 11, 17, 4294967280UL) ^
+      LCGStep(z4, 1664525, 1013904223UL));
 }
 
 __global__ void testRNG(int n) {
@@ -59,49 +59,45 @@ __device__ inline void update_fund(float fund_value,
   next_value = fund_value * (float(100.0) + period_return) / 100;
 }
 
-////////////////////////////////
-__global__ void mc_simulations_gpu_kernel_v1(
+//__global__ void mc_simulations_gpu_kernel_v1(
+//    float *historical_returns,
+//    const unsigned int n_returns,
+//    float *totals,
+//    const unsigned long max_n_simulations,
+//    const unsigned int n_periods) {
+//  // https://cvw.cac.cornell.edu/gpu/memory_arch
+//  // threads in a block are on the same SM
+//  // 32 threads are a warp
+//  unsigned int bid = blockIdx.x;
+//  unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+//  unsigned int step = gridDim.x * blockDim.x;
+//  unsigned int wid = threadIdx.x / warpSize;
+//
+//  if (tid >= max_n_simulations) return;
+//
+//  // Initialise the RNG. From
+//  // https://docs.nvidia.com/cuda/curand/device-api-overview.html#pseudorandom-sequences:
+//  // "Sequences generated with the same seed and different sequence numbers will
+//  // not have statistically correlated values."
+//
+//  // generate starting numbers for HybridTaus with curand
+//  curandState localState;
+//  curand_init(1234567, tid, 0, &localState);  // seed, sequence number, offset, state
+//
+//  for (unsigned int i = 0; i < n_periods; i++) {
+//    unsigned int return_idx = n_returns * curand_uniform(&localState);
+//    update_fund(totals[tid], historical_returns[return_idx], totals[tid]);
+//    //    printf("%f -> %f\n", this_return, totals[id+i+1]);
+//  }
+//
+//  if (tid % (max_n_simulations / 10) == 0)
+//    printf("Simulation %d/%ld\n", tid, max_n_simulations);
+//}
+
+__global__ void mc_simulations_gpu_kernel(
     float *historical_returns,
     const unsigned int n_returns,
     float *totals,
-    const unsigned long max_n_simulations,
-    const unsigned int n_periods) {
-  // https://cvw.cac.cornell.edu/gpu/memory_arch
-  // threads in a block are on the same SM
-  // 32 threads are a warp
-  unsigned int bid = blockIdx.x;
-  unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  unsigned int step = gridDim.x * blockDim.x;
-  unsigned int wid = threadIdx.x / warpSize;
-
-  if (tid >= max_n_simulations) return;
-
-  // Initialise the RNG. From
-  // https://docs.nvidia.com/cuda/curand/device-api-overview.html#pseudorandom-sequences:
-  // "Sequences generated with the same seed and different sequence numbers will
-  // not have statistically correlated values."
-
-  // generate starting numbers for HybridTaus with curand
-  curandState localState;
-  curand_init(
-      1234567, tid, 0, &localState);  // seed, sequence number, offset, state
-
-  for (unsigned int i = 0; i < n_periods; i++) {
-    unsigned int return_idx = n_returns * curand_uniform(&localState);
-    update_fund(totals[tid], historical_returns[return_idx], totals[tid]);
-    //    printf("%f -> %f\n", this_return, totals[id+i+1]);
-  }
-
-  if (tid % (max_n_simulations / 10) == 0)
-    printf("Simulation %d/%ld\n", tid, max_n_simulations);
-}
-
-__global__ void mc_simulations_gpu_kernel(
-    float *__restrict__ historical_returns,
-    //    float * historical_returns,
-    const unsigned int n_returns,
-    float *__restrict__ totals,
-    //    float * totals,
     const unsigned long max_n_simulations,
     const unsigned int n_periods) {
   // https://cvw.cac.cornell.edu/gpu/memory_arch
@@ -119,27 +115,17 @@ __global__ void mc_simulations_gpu_kernel(
   // "Sequences generated with the same seed and different sequence numbers will
   // not have statistically correlated values."
 
-  //  curandState localState;
-  //  curand_init(1234567, tid, 0, &localState);  // seed, sequence number,
-  //  offset, state
+//  curandState localState;
+//  curand_init(1234567, tid, 0, &localState);  // seed, sequence number, offset, state
 
-  // don't use curand b/c global memory
-  // use local LCG and Tausworthe generator within registers
-  // https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-37-efficient-random-number-generation-and-application
+//  // don't use curand b/c global memory
+//  // use local LCG and Tausworthe generator within registers
+//  // https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-37-efficient-random-number-generation-and-application
   unsigned int rstate[] = {tid, 21701, 1297, 65537};
 
-  // to avoid global mem accesses: shmem buffer per block
-  // shmem buffer for historical returns, 1 warp in block loads it
-  //  __shared__ float buffer[1129];
-  //  if (threadIdx.x < warpSize) {
-  //    //    int n_per_thread = n_returns / warpSize; // TODO cache coherency
-  //    for (int i = threadIdx.x; i < n_returns; i += warpSize) {
-  //      buffer[i] = historical_returns[i];
-  //    }
-  //  }
   __shared__ float buffer[1129];
   // TODO multiple threads to load, using coalesced memory accesses?
-  const unsigned int n_threads_loading = warpSize;
+  const unsigned int n_threads_loading = 1; //warpSize;
   if (threadIdx.x < n_threads_loading) {
 //    // slip n_returns in N warpSize chunks, every thread loads N values
 //    unsigned int start_idx = threadIdx.x * n_per_thread;
@@ -154,19 +140,15 @@ __global__ void mc_simulations_gpu_kernel(
   __syncthreads();
 
   // we do all this locally, reading return from shmem
-  float local_total = totals[tid];
   for (unsigned int i = 0; i < n_periods; i++) {
-    //    unsigned int return_idx = n_returns * curand_uniform(&localState);
-    unsigned int return_idx =
-        n_returns * HybridTaus(rstate[0], rstate[1], rstate[2], rstate[3]);
-    update_fund(local_total, buffer[return_idx], local_total);
+//    unsigned int return_idx = n_returns * curand_uniform(&localState);
+    unsigned int return_idx = n_returns * HybridTaus(rstate[0], rstate[1], rstate[2], rstate[3]);
+    update_fund(totals[tid], buffer[return_idx], totals[tid]);
     //    printf("%f -> %f\n", this_return, totals[id+i+1]);
   }
-  // write to global memory
-  totals[tid] = local_total;
 
-  if (tid % (max_n_simulations / 10) == 0)
-    printf("Simulation %d/%ld\n", tid, max_n_simulations);
+//  if (tid % (max_n_simulations / 10) == 0)
+//    printf("Simulation %d/%ld\n", tid, max_n_simulations);
 }
 
 void _mc_simulations_gpu(float *historical_returns,
@@ -197,17 +179,17 @@ void _mc_simulations_gpu(float *historical_returns,
   //  }
 
   cudaFuncGetAttributes(&funcAttributes, mc_simulations_gpu_kernel);
-  if (block.x > (unsigned int)funcAttributes.maxThreadsPerBlock) {
+  if (block.x > (unsigned int) funcAttributes.maxThreadsPerBlock) {
     throw std::runtime_error(
         "Block X dimension is too large for mc_simulations_gpu_kernel");
   }
 
   // Check the dimensions are valid
-  if (block.x > (unsigned int)deviceProperties.maxThreadsDim[0]) {
+  if (block.x > (unsigned int) deviceProperties.maxThreadsDim[0]) {
     throw std::runtime_error("Block X dimension is too large for device");
   }
 
-  if (grid.x > (unsigned int)deviceProperties.maxGridSize[0]) {
+  if (grid.x > (unsigned int) deviceProperties.maxGridSize[0]) {
     throw std::runtime_error("Grid X dimension is too large for device");
   }
 

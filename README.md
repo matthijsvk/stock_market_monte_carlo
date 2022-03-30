@@ -75,7 +75,7 @@ python compare.py benchmark bench1.json bench2.json
 see `profiling/howto.sh`
 ```
 # with GPU 2
-CUDA_VISIBLE_DEVICES=1 sudo -E /usr/local/cuda/bin/nv-nsight-cu-cli -f --devices 0 --target-processes all --set full  --call-stack --nvtx -o `pwd`/profiling/ncu_1k_1M_bs256_v3 "build/benchmark_mc_gpu_1k_1M_bs256_v3" 1000 5000000
+CUDA_VISIBLE_DEVICES=1 sudo -E /usr/local/cuda/bin/nv-nsight-cu-cli -f --devices 0 --target-processes all --set full  --call-stack --nvtx -o `pwd`/profiling/ncu_1k_1M_bs256_v3 "build/benchmark_mc_gpu_bs256_v3" 1000 5000000
 ```
 
 ### Using C++ only for simulation and write to disk, Python for visualization
