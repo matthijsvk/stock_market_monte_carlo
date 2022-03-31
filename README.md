@@ -48,17 +48,18 @@ If you have an NVIDIA GPU with CUDA, there's also a GPU version which can do hun
 build/example_gui_simulated_gpu 360 1000000000
 ```
 
-### Benchmarks: 360 periods, 10 000 000 simulations.
+### Benchmarks: 360 periods, 100 000 000 simulations.
 
-CPU: i7-6850K, 6-core, 3.6GHz  
-GPU: NVIDIA Titan V
+CPU: Ryzen 7 5800X 8-Core, 3.6GHz
+GPU: NVIDIA RTX 3070
 
 |       Program       | Time (s) | Memory (GB) |
 |:-------------------:|:--------:|:-----------:|
-| CPU v1, single core |  141.3   |     ~28     |
-|   CPU v1, openMP    |   21.3   |     ~28     |
-|   CPU v2, openMP    |   15.4   |    ~0.5     |
-|         GPU         |   0.4    |    ~0.5     |
+| CPU v1, single core |  479.52  |     ~28     |
+|   CPU v1, openMP    |  85.26   |     ~28     |
+|   CPU v2, openMP    |  41.81   |    ~0.5     |
+|         GPU         |   1.76   |    ~0.5     |
+|   GPU, optimized    |   0.26   |    ~0.5     |
 
 You can use [Google Benchmark](https://github.com/google/benchmark) with the 'benchmark_mc_gpu' example program:
 ```

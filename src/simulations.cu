@@ -17,14 +17,14 @@
 // https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-37-efficient-random-number-generation-and-application
 // S1, S2, S3, and M are all constants, and z is part of the    // private
 // per-thread generator state.
-__device__ unsigned TausStep(unsigned int &z, int S1, int S2, int S3, unsigned int M) {
+__device__ __inline__ unsigned TausStep(unsigned int &z, int S1, int S2, int S3, unsigned int M) {
   unsigned b = (((z << S1) ^ z) >> S2);
   return z = (((z & M) << S3) ^ b);
 }
-__device__ unsigned LCGStep(unsigned int &z, unsigned int A, unsigned int C) {
+__device__ __inline__ unsigned LCGStep(unsigned int &z, unsigned int A, unsigned int C) {
   return z = (A * z + C);
 }
-__device__ float HybridTaus(unsigned int &z1,
+__device__ __inline__ float HybridTaus(unsigned int &z1,
                             unsigned int &z2,
                             unsigned int &z3,
                             unsigned int &z4) {
@@ -33,6 +33,17 @@ __device__ float HybridTaus(unsigned int &z1,
       TausStep(z2, 2, 25, 4, 4294967288UL) ^
       TausStep(z3, 3, 11, 17, 4294967280UL) ^
       LCGStep(z4, 1664525, 1013904223UL));
+}
+
+__device__ __inline__ float HybridTausSimple(unsigned int &z1,
+                                  unsigned int &z2) {
+  // Combined period is lcm(p1,p2)~ 2^60
+  return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^ TausStep(z2, 2, 25, 4, 4294967288UL));
+}
+
+__device__ __inline__ float HybridTausSimplest(unsigned int &z1) {
+  // Combined period is lcm(p1,p2)~ 2^30
+  return float(2.3283064365387e-10) * TausStep(z1, 13, 19, 12, 4294967294UL);
 }
 
 __global__ void testRNG(int n) {
@@ -106,9 +117,11 @@ __global__ void mc_simulations_gpu_kernel(
   //  unsigned int bid = blockIdx.x;
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
   //  unsigned int step = gridDim.x * blockDim.x;
-  //  unsigned int wid = threadIdx.x / warpSize;
+//  unsigned int wid = threadIdx.x / warpSize;
 
-  if (tid >= max_n_simulations) return;
+  if (tid >= max_n_simulations) {
+    return;
+  }
 
   // Initialise the RNG. From
   // https://docs.nvidia.com/cuda/curand/device-api-overview.html#pseudorandom-sequences:
@@ -119,12 +132,13 @@ __global__ void mc_simulations_gpu_kernel(
 //  curand_init(1234567, tid, 0, &localState);  // seed, sequence number, offset, state
 
 //  // don't use curand b/c global memory
-//  // use local LCG and Tausworthe generator within registers
+//  // use local LCG and Tausworthe generator within registers. Use dynamic init numbers to ensure diversity
 //  // https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-37-efficient-random-number-generation-and-application
-  unsigned int rstate[] = {tid, 21701, 1297, 65537};
+  unsigned int rstate[] = {tid + 21701};//, blockIdx.x + 21701};//, 1297, threadIdx.x + 65537};
 
   __shared__ float buffer[1129];
   // TODO multiple threads to load, using coalesced memory accesses?
+  // global memory reads: 8 floats (32 bytes)
   const unsigned int n_threads_loading = 1; //warpSize;
   if (threadIdx.x < n_threads_loading) {
 //    // slip n_returns in N warpSize chunks, every thread loads N values
@@ -134,17 +148,22 @@ __global__ void mc_simulations_gpu_kernel(
 //      buffer[i] = historical_returns[i];
 //    }
     for (unsigned int i = threadIdx.x; i < n_returns; i += n_threads_loading) {
-      buffer[i] = historical_returns[i];
+      buffer[i] = historical_returns[i]; // * float(0.01);
     }
+    //printf("\nLoaded to shmem!\n");
   }
   __syncthreads();
+
+  //todo Sobol PRNG to avoid shmem bank conflicts? -> every thread different dimension to have variety
+  // in this way equal load on all banks
 
   // we do all this locally, reading return from shmem
   for (unsigned int i = 0; i < n_periods; i++) {
 //    unsigned int return_idx = n_returns * curand_uniform(&localState);
-    unsigned int return_idx = n_returns * HybridTaus(rstate[0], rstate[1], rstate[2], rstate[3]);
-    update_fund(totals[tid], buffer[return_idx], totals[tid]);
-    //    printf("%f -> %f\n", this_return, totals[id+i+1]);
+//    unsigned int return_idx = n_returns * HybridTaus(rstate[0], rstate[1], rstate[2], rstate[3]);
+//    unsigned int return_idx = n_returns * HybridTausSimple(rstate[0], rstate[1]);
+    unsigned int return_idx = n_returns * HybridTausSimplest(rstate[0]);
+    totals[tid] = totals[tid] + totals[tid] * buffer[return_idx];
   }
 
 //  if (tid % (max_n_simulations / 10) == 0)
@@ -224,11 +243,19 @@ void mc_simulations_gpu(std::atomic<unsigned long> &n_simulations,
                         const float initial_capital,
                         std::vector<float> &historical_returns,
                         std::vector<float> &final_values) {
+//  printf("%f", float(2^-32));
+
   // initialize output array
   std::fill(final_values.begin(), final_values.end(), initial_capital);
   // get pointers b/c GPU can't use std::vectors
   float *totals_arr = &final_values[0];
-  float *historical_returns_arr = &historical_returns[0];
+
+  // create array copy instead of float *historical_returns_arr = &historical_returns[0];
+  // b/c we want to modify it (mult by 0.01)
+  float historical_returns_arr[historical_returns.size()];
+  for (unsigned int i = 0; i < historical_returns.size(); i += 1) {
+    historical_returns_arr[i] = historical_returns[i] * float(0.01);
+  }
 
   _mc_simulations_gpu(historical_returns_arr,
                       historical_returns.size(),

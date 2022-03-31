@@ -21,6 +21,13 @@ add_executable(example_gui_simulated_v2 gui_simulated_v2.cpp)
 target_link_libraries(example_gui_simulated_v2 PRIVATE stock_market_monte_carlo imgui implot)
 target_include_directories(example_gui_simulated_v2 PRIVATE "${implot_SOURCE_DIR}")
 
+add_executable(benchmark_mc_cpu benchmark_mc_cpu.cpp)
+target_link_libraries(benchmark_mc_cpu PRIVATE stock_market_monte_carlo benchmark::benchmark)
+
+add_executable(visualize_rng visualize_rng.cpp)
+target_link_libraries(visualize_rng PRIVATE stock_market_monte_carlo imgui implot)
+target_include_directories(visualize_rng PRIVATE "${implot_SOURCE_DIR}")
+
 # with GPU
 add_executable(example_gpu example_gpu.cpp)
 target_link_libraries(example_gpu PRIVATE stock_market_monte_carlo)

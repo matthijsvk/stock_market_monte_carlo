@@ -6,3 +6,4 @@ cmake-*
 .idea
 *.csv
 *.ncu-rep
+*.o

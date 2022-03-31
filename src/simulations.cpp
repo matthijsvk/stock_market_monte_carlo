@@ -254,8 +254,8 @@ void mc_simulations(std::atomic<unsigned long> &n_simulations,
       final_values[id] = total;
     }
     n_simulations += this_block_size;
-    fmt::print(
-        "{:d}/{:d} simulations done\n", n_simulations, max_n_simulations);
+    if (n_sims_blocks % (n_blocks / 10) == 0)
+      fmt::print("{:d}/{:d} simulations done\n", n_simulations, max_n_simulations);
   }
   assert(n_simulations = max_n_simulations);  // must be true here
 
