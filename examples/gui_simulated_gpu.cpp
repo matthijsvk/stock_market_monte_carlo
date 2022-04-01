@@ -140,18 +140,19 @@ unsigned long update_count_below_min(float &min_final_amount,
 int main(int argc, char *argv[]) {
   fmt::print("argc: {}\n", argc);
   unsigned long max_n_simulations;
-  unsigned int n_periods;
-  if (argc == 3) {
+  unsigned int n_periods, n_gpus;
+  if (argc == 4) {
     char *end;
-    n_periods = long(std::strtol(argv[1], &end, 10));
-    max_n_simulations = long(std::strtol(argv[2], &end, 10));
+    n_gpus = atoi(argv[1]);
+    n_periods = std::strtol(argv[2], &end, 10);
+    max_n_simulations = long(std::strtol(argv[3], &end, 10));
     fmt::print("n_periods: {} | max_n_simulations: {}\n",
                n_periods,
                max_n_simulations);
   } else {
     fmt::print(
-        "usage: example_gui_simulated <n_months> <n_simulations>, eg "
-        "example_gui_simulated 360 100000");
+        "usage: example_gui_simulated <n_gpus> <n_months> <n_simulations>, eg "
+        "example_gui_simulated 1 360 100000");
     exit(0);
   }
 
@@ -189,7 +190,8 @@ int main(int argc, char *argv[]) {
                  n_periods,
                  initial_capital,
                  std::ref(historical_returns),
-                 std::ref(final_values));
+                 std::ref(final_values),
+                 1);
 
   // CPU computes <max_displayed_plots> for visualizlation, saving entire
   // trajectory

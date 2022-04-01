@@ -5,18 +5,19 @@
 int main(int argc, char *argv[]) {
   fmt::print("argc: {}\n", argc);
   unsigned long max_n_simulations;
-  unsigned int n_periods;
-  if (argc == 3) {
+  unsigned int n_periods, n_gpus;
+  if (argc == 4) {
     char *end;
-    n_periods = long(std::strtol(argv[1], &end, 10));
-    max_n_simulations = long(std::strtol(argv[2], &end, 10));
+    n_gpus = atoi(argv[1]);
+    n_periods = atoi(argv[2]);
+    max_n_simulations = long(std::strtol(argv[3], &end, 10));
     fmt::print("n_periods: {} | max_n_simulations: {}\n",
                n_periods,
                max_n_simulations);
   } else {
     fmt::print(
-        "usage: example_gui_simulated <n_months> <n_simulations>, eg "
-        "example_gui_simulated 360 100000");
+        "usage: example_gui_simulated <n_gpus> <n_months> <n_simulations>, eg "
+        "example_gui_simulated 1 360 100000");
     exit(0);
   }
 
@@ -34,7 +35,8 @@ int main(int argc, char *argv[]) {
                      n_periods,
                      initial_capital,
                      historical_returns,
-                     final_values);
+                     final_values,
+                     n_gpus);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   auto timediff =
       std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)

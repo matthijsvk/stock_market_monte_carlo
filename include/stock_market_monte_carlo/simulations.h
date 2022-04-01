@@ -68,5 +68,6 @@ void mc_simulations_gpu(std::atomic<unsigned long> &n_simulations,
                         unsigned int n_periods,
                         float initial_capital,
                         std::vector<float> &historical_returns,
-                        std::vector<float> &final_values);
+                        std::vector<float> &final_values,
+                        int n_gpus);
 void testRNG(int n);
