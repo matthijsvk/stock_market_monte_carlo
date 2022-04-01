@@ -464,7 +464,7 @@ int main(int argc, char *argv[]) {
              count_below_min,
              n_simulations,
              100 * float(count_below_min) / n_simulations);
-  write_vector_file("results.csv", final_values);
+//  write_vector_file("results.csv", final_values);
 
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();

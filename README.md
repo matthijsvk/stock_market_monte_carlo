@@ -63,13 +63,12 @@ GPU: NVIDIA RTX 3070
 
 You can use [Google Benchmark](https://github.com/google/benchmark) with the 'benchmark_mc_gpu' example program:
 ```
-build/benchmark_mc_gpu --benchmark_out=profiling/bench.json --benchmark_repetitions=5
+build/benchmark_mc_gpu --benchmark_out=profiling/bench.json --benchmark_repetitions=10
 cat profiling/bench.json
 ```
 If you have 2 runs stored to `bench1.json` and `bench2.json`, compare them with:
 ```
-cd benchmark/tools
-python compare.py benchmark bench1.json bench2.json
+python benchmark/tools/compare.py benchmarks bench1.json bench2.json
 ```
 
 ### Profiling

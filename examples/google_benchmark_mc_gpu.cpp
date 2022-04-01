@@ -9,7 +9,7 @@
 
 static void BM_MCGPU(benchmark::State& state) {
   // Perform setup here
-  unsigned long max_n_simulations = state.range(0);
+  unsigned long max_n_simulations = 100000000; //state.range(0);
   unsigned int n_periods = 1000;  // state.range(1);
   fmt::print("n_sim: {:d} | n_periods: {:d}\n", max_n_simulations, n_periods);
 
@@ -31,7 +31,8 @@ static void BM_MCGPU(benchmark::State& state) {
 }
 
 // BENCHMARK(BM_MCGPU)->Ranges({{2 << 20, 2 << 27}, {1000}})->Complexity();
-BENCHMARK(BM_MCGPU)->RangeMultiplier(10)->Range(1e6, 1e8);  //->Complexity();
+//BENCHMARK(BM_MCGPU)->RangeMultiplier(10)->Range(1e6, 1e8);  //->Complexity();
+BENCHMARK(BM_MCGPU);
 // BENCHMARK(BM_MCGPU);
 //  Run the benchmark
 BENCHMARK_MAIN();

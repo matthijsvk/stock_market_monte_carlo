@@ -80,6 +80,14 @@ double rng_normal(float mean, float std) {
   return dist(e2);
 }
 
+unsigned int xorshift(unsigned int y) {
+  // Liao et al 2020 SAGC "A 23.8Tbps Random Number Generator on a Single GPU"
+  // https://github.com/L4Xin/quadruples-xorshift/
+  y = y ^ (y << 11);
+  y = y ^ (y >> 7);
+  return y ^ (y >> 12);
+}
+
 unsigned TausStep(unsigned int &z, int S1, int S2, int S3, unsigned int M) {
   unsigned b = (((z << S1) ^ z) >> S2);
   return z = (((z & M) << S3) ^ b);
@@ -93,9 +101,9 @@ float HybridTaus(unsigned int &z1,
                  unsigned int &z4) {
   // Combined period is lcm(p1,p2,p3,p4)~ 2^121
   return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^
-      TausStep(z2, 2, 25, 4, 4294967288UL) ^
-      TausStep(z3, 3, 11, 17, 4294967280UL) ^
-      LCGStep(z4, 1664525, 1013904223UL));
+                                       TausStep(z2, 2, 25, 4, 4294967288UL) ^
+                                       TausStep(z3, 3, 11, 17, 4294967280UL) ^
+                                       LCGStep(z4, 1664525, 1013904223UL));
 }
 
 float HybridTausSimple(unsigned int &z1,
@@ -104,33 +112,17 @@ float HybridTausSimple(unsigned int &z1,
                        unsigned int &z4) {
   // Combined period is lcm(p1,p2,p3,p4)~ 2^121
   return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^
-      TausStep(z2, 2, 25, 4, 4294967288UL));
+                                       TausStep(z2, 2, 25, 4, 4294967288UL));
 }
 
 float HybridTausMedium(unsigned int &z1,
-                 unsigned int &z2,
-                 unsigned int &z3,
-                 unsigned int &z4) {
+                       unsigned int &z2,
+                       unsigned int &z3,
+                       unsigned int &z4) {
   // Combined period is lcm(p1,p2,p3,p4)~ 2^121
   return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^
-      TausStep(z2, 2, 25, 4, 4294967288UL) ^
-      TausStep(z3, 3, 11, 17, 4294967280UL));
-}
-
-std::vector<float> test_RNG(int n) {
-//  unsigned int rstate[4];
-//  for (int i = 0; i < 4; i++) rstate[i] = i * 12371;
-  std::vector<float> values(n, 0);
-  unsigned int rstate[] = {1, 21701, 1297, 65537};
-
-  for (int i = 0; i < n; i++) {
-//    float val = HybridTaus(rstate[0], rstate[1], rstate[2], rstate[3]);
-//    float val = HybridTausMedium(rstate[0], rstate[1], rstate[2], rstate[3]);
-    float val = HybridTausSimple(rstate[0], rstate[1], rstate[2], rstate[3]);
-    printf("%f\t", val);
-    values[n] = val;
-  }
-  return values;
+                                       TausStep(z2, 2, 25, 4, 4294967288UL) ^
+                                       TausStep(z3, 3, 11, 17, 4294967280UL));
 }
 
 int main(int argc, char *argv[]) {
@@ -141,12 +133,11 @@ int main(int argc, char *argv[]) {
     n = int(std::strtol(argv[1], &end, 10));
     fmt::print("n: {}\n", n);
   } else {
-    fmt::print(
-        "usage: visualize_rng <n>>");
+    fmt::print("usage: visualize_rng <n>>");
     exit(0);
   }
   // TODO preallocate?
-//  std::vector<float> values(n, 0);
+  //  std::vector<float> values(n, 0);
 
   //-------------------------------------
   // GUI stuff
@@ -156,7 +147,7 @@ int main(int argc, char *argv[]) {
   // Init to set up window
   if (!glfwInit()) return 1;
 
-  // Decide GL+GLSL versions
+    // Decide GL+GLSL versions
 // Decide GL+GLSL versions
 #if defined(IMGUI_IMPL_OPENGL_ES2)
   // GL ES 2.0 + GLSL 100
@@ -183,11 +174,8 @@ int main(int argc, char *argv[]) {
   // Create window with graphics context
   int window_width = 1280;
   int window_height = 720;
-  GLFWwindow *window = glfwCreateWindow(window_width,
-                                        window_height,
-                                        "RNG distribution (1D)",
-                                        nullptr,
-                                        nullptr);
+  GLFWwindow *window = glfwCreateWindow(
+      window_width, window_height, "RNG distribution (1D)", nullptr, nullptr);
   if (window == nullptr) return 1;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);  // Enable vsync
@@ -221,7 +209,7 @@ int main(int argc, char *argv[]) {
   ImGui::CreateContext();
   ImPlot::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
-  (void) io;
+  (void)io;
 
   // Setup Dear ImGui style
   //  ImGui::StyleColorsDark();
@@ -236,11 +224,24 @@ int main(int argc, char *argv[]) {
 
   // Main loop
   std::vector<float> values;
-  int maxval = 1000;
-  std::vector<int> counts(maxval, 0);
+  int maxval = 1129;
+  std::vector<unsigned int> counts(maxval, 0);
   unsigned int rstate[] = {0, 21701, 1297, 65537};
   int prev_n = 0;
   bool pause = 0;
+
+  // seeds for xorshift rng
+  std::random_device rd;  // only used once to initialise (seed) engine
+  std::mt19937 rng(
+      rd());  // random-number engine used (Mersenne-Twister in this case)
+  std::uniform_int_distribution<unsigned int> uni(
+      0, UINT32_MAX);  // guaranteed unbiased
+
+  std::vector<unsigned int> prng_seeds(n, 0);
+  for (unsigned int i = 0; i < n; i += 1) {
+    prng_seeds[i] = uni(rng);
+  }
+
   while (!glfwWindowShouldClose(window)) {
     // Poll and handle events (inputs, window resize, etc.)
     // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to
@@ -274,6 +275,8 @@ int main(int argc, char *argv[]) {
     ImGui::Indent(0.25 * window_width);
     ImGui::SetNextItemWidth(0.5 * window_width);
     ImGui::SliderInt("N values?", &n, 0, 100000);
+    ImGui::SetNextItemWidth(0.5 * window_width);
+    ImGui::SliderInt("max?", &maxval, 0, 2000);
     if (prev_n != n) {
       pause = 0;
       prev_n = n;
@@ -285,20 +288,39 @@ int main(int argc, char *argv[]) {
     ImGui::Checkbox("Pause?", &pause);
     ImGui::Unindent(0.5 * window_width);
     if (!pause) {
-      for (uint i = 0; i < counts.size(); i++) {
-        counts[i] = 0;
+      // generate seeds for xorshift PRNG
+      prng_seeds.resize(n);
+      for (unsigned int i = 0; i < n; i += 1) {
+        prng_seeds[i] = uni(rng);
       }
+      // reset counters
+      counts.resize(maxval);
+      std::fill(counts.begin(), counts.end(), 0);
+
+      // generate random numbers
+      unsigned int prng_seed = prng_seeds[0];
       for (uint i = 0; i < n; i++) {
-        unsigned int idx = maxval * HybridTaus(rstate[0], rstate[1], rstate[2], rstate[3]);
+        //        unsigned int idx = maxval * HybridTaus(rstate[0], rstate[1],
+        //        rstate[2], rstate[3]);
+        prng_seed = xorshift(prng_seed);
+        unsigned int idx = prng_seed % maxval;
+        if (idx < 0 || idx >= maxval) {
+          printf("idx: %d ", idx);
+          exit(0);
+        }
         counts[idx] += 1;
       }
     }
 
     // Plot
-    if (ImPlot::BeginPlot("My Plot", ImVec2(-1, height - 100), ImPlotAxisFlags_AutoFit)) {
-      ImPlot::SetupAxes("idx", "count", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
-//      ImPlot::PlotLine(fmt::format("Histogram").c_str(), counts.data(), counts.size());
-      ImPlot::PlotBars(fmt::format("Histogram").c_str(), counts.data(), counts.size(), 0.67);
+    if (ImPlot::BeginPlot(
+            "My Plot", ImVec2(-1, height - 100), ImPlotAxisFlags_AutoFit)) {
+      ImPlot::SetupAxes(
+          "idx", "count", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+      //      ImPlot::PlotLine(fmt::format("Histogram").c_str(), counts.data(),
+      //      counts.size());
+      ImPlot::PlotBars(
+          fmt::format("Histogram").c_str(), counts.data(), counts.size(), 0.67);
     }
     ImPlot::EndPlot();
 
@@ -320,7 +342,7 @@ int main(int argc, char *argv[]) {
     glfwSwapBuffers(window);
   }
 
-// Cleanup
+  // Cleanup
 
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
@@ -332,4 +354,3 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
-
