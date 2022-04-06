@@ -70,11 +70,11 @@ if (TCNN_HAS_PARENT)
     set(CMAKE_CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES} PARENT_SCOPE)
 endif ()
 
-#list(APPEND CUDA_NVCC_FLAGS "--extended-lambda")
-#list(APPEND CUDA_NVCC_FLAGS "--expt-relaxed-constexpr")
+#list(APPEND CUDA_NVCC_FLAGS )
+#list(APPEND CUDA_NVCC_FLAGS )
 
 ## for Profiling
-list(APPEND CUDA_NVCC_FLAGS "-lineinfo")
+list(APPEND CUDA_NVCC_FLAGS "-lineinfo --extended-lambda --expt-relaxed-constexpr -Wall -Wextra")
 
 ###############################################################################
 # other libraries

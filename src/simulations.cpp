@@ -65,14 +65,14 @@ void one_simulation_gaussian(const std::string output_fname,
   write_data_file(output_fname, returns, values);
 }
 
-void monte_carlo_gaussian(unsigned long n,
+void monte_carlo_gaussian(long n,
                           float initial_capital,
                           unsigned int n_periods,
                           float return_mean,
                           float return_std) {
   // TODO: write all to 1 data structure, then to 1 csv file so save on I/O for
   // Monte Carlo?
-  for (unsigned long i = 0; i < n; i++) {
+  for (long i = 0; i < n; i++) {
     std::string output_fname = fmt::format("gaussian_{:05d}.csv", i);
     one_simulation_gaussian(
         output_fname, initial_capital, n_periods, return_mean, return_std);
@@ -85,11 +85,11 @@ std::vector<float> read_historical_returns(std::string csv_fpath) {
   in.read_header(io::ignore_extra_column, "returns");
   float this_return;
 
-  std::vector<float> historical_returns;
+  std::vector<float> returns;
   while (in.read_row(this_return)) {
-    historical_returns.push_back(this_return);
+    returns.push_back(this_return);
   }
-  return historical_returns;
+  return returns;
 }
 
 std::vector<float> sample_returns_historical(
@@ -121,7 +121,7 @@ void one_simulation_historical(const std::string output_fname,
   write_data_file(output_fname, returns, values);
 }
 
-void monte_carlo_historical(unsigned long n,
+void monte_carlo_historical(long n,
                             float initial_capital,
                             unsigned int n_periods,
                             const std::string csv_fpath) {
@@ -137,8 +137,8 @@ void monte_carlo_historical(unsigned long n,
 }
 
 // TODO Can't overload mc_cimulations for some reason??
-void mc_simulations_keepdata(std::atomic<unsigned long> &n_simulations,
-                             const unsigned long max_n_simulations,
+void mc_simulations_keepdata(std::atomic<long> &n_simulations,
+                             const long max_n_simulations,
                              const unsigned int n_periods,
                              const float initial_capital,
                              std::vector<float> &historical_returns,
@@ -147,8 +147,8 @@ void mc_simulations_keepdata(std::atomic<unsigned long> &n_simulations,
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
 
-  unsigned long block_size = 1000;
-  unsigned long n_blocks = std::ceil(max_n_simulations / float(block_size));
+  long block_size = 1000;
+  long n_blocks = std::ceil(max_n_simulations / float(block_size));
 
   // leave 1 core for visualization
   const int num_cpu_cores =
@@ -165,17 +165,17 @@ void mc_simulations_keepdata(std::atomic<unsigned long> &n_simulations,
                                                     historical_returns, \
                                                     mc_data,            \
                                                     final_values)
-  for (unsigned long n_sims_blocks = 0; n_sims_blocks < n_blocks;
+  for (long n_sims_blocks = 0; n_sims_blocks < n_blocks;
        n_sims_blocks++) {
     // last block may not contain full 'block_size' elements!
-    unsigned long block_id = n_sims_blocks * block_size;
+    long block_id = n_sims_blocks * block_size;
     unsigned int this_block_size =
         std::min(block_size, max_n_simulations - block_id);
     //        fmt::print("Block id {}, block_id: {}, this_block_size:
     //        {}\n", n_sims_blocks, block_id, this_block_size);
 
     for (long n_sims = 0; n_sims < this_block_size; n_sims++) {
-      unsigned long id = block_id + n_sims;
+      long id = block_id + n_sims;
 
       // do calculations
       std::vector<float> returns =
@@ -203,8 +203,8 @@ void mc_simulations_keepdata(std::atomic<unsigned long> &n_simulations,
       "All {} simulation done in {} s!\n", n_simulations, timediff / 1000.0);
 }
 
-void mc_simulations(std::atomic<unsigned long> &n_simulations,
-                    const unsigned long max_n_simulations,
+void mc_simulations(std::atomic<long> &n_simulations,
+                    const long max_n_simulations,
                     const unsigned int n_periods,
                     const float initial_capital,
                     std::vector<float> &historical_returns,
@@ -212,8 +212,8 @@ void mc_simulations(std::atomic<unsigned long> &n_simulations,
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
 
-  const unsigned long block_size = 1000;
-  const unsigned long n_blocks =
+  const long block_size = 1000;
+  const long n_blocks =
       std::ceil(max_n_simulations / float(block_size));
 
   // leave 1 core for visualization
@@ -230,17 +230,17 @@ void mc_simulations(std::atomic<unsigned long> &n_simulations,
                                                     initial_capital,    \
                                                     historical_returns, \
                                                     final_values)
-  for (unsigned long n_sims_blocks = 0; n_sims_blocks < n_blocks;
+  for (long n_sims_blocks = 0; n_sims_blocks < n_blocks;
        n_sims_blocks++) {
     // last block may not contain full 'block_size' elements!
-    unsigned long block_id = n_sims_blocks * block_size;
+    long block_id = n_sims_blocks * block_size;
     unsigned int this_block_size =
         std::min(block_size, max_n_simulations - block_id);
     //        fmt::print("Block id {}, block_id: {}, this_block_size:
     //        {}\n", n_sims_blocks, block_id, this_block_size);
 
-    for (unsigned long n_sims = 0; n_sims < this_block_size; n_sims++) {
-      unsigned long id = block_id + n_sims;
+    for (long n_sims = 0; n_sims < this_block_size; n_sims++) {
+      long id = block_id + n_sims;
       float total = initial_capital;
 
       // set up random generator // todo 1 per block??

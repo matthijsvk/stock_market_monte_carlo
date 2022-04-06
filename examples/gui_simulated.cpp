@@ -82,7 +82,7 @@ double rng_normal(float mean, float std) {
 
 void update_quartiles(std::vector<float> &quartiles,
                       std::vector<float> &vec,
-                      unsigned long n_el) {
+                      long n_el) {
   // for find quartiles we don't need to fully sort, just get the right value at
   // the right place this is O(n) instead of O(n log n) for full sorting, so a
   // big difference for large vectors!
@@ -120,9 +120,9 @@ void update_mean_std(float &mean, float &std, std::vector<float> &v, int n_el) {
 
 int update_count_below_min(float &min_final_amount,
                            const std::vector<float> &final_values,
-                           unsigned long n_simulations) {
+                           long n_simulations) {
   int count_below_min = 0;
-  for (unsigned long i = 0; i < n_simulations; i++) {
+  for (long i = 0; i < n_simulations; i++) {
     float val = final_values[i];
     if (val == -1) {
       // TODO this should never happen, but it does with openMP....
@@ -135,7 +135,7 @@ int update_count_below_min(float &min_final_amount,
 
 int main(int argc, char *argv[]) {
   fmt::print("argc: {}\n", argc);
-  unsigned long max_n_simulations;
+  long max_n_simulations;
   unsigned int n_periods;
   if (argc == 3) {
     char *end;
@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
 
   // MC sampling in background thread:
   // https://hackernoon.com/learn-c-multi-threading-in-5-minutes-8b881c92941f
-  std::atomic<unsigned long> n_simulations =0;  // shared between openMP threads
+  std::atomic<long> n_simulations =0;  // shared between openMP threads
   std::thread t1(mc_simulations_keepdata,
                  std::ref(n_simulations),
                  max_n_simulations,
@@ -286,7 +286,7 @@ int main(int argc, char *argv[]) {
 
   // Main loop
   // to update count only if something changes
-  unsigned long prev_n_simulations = 0;
+  long prev_n_simulations = 0;
   float prev_min_final_amount = -1;
   float min_final_amount = initial_capital;
   std::vector<float> quartiles(5, 0);

@@ -25,8 +25,12 @@ target_include_directories(example_gui_simulated_v2 PRIVATE "${implot_SOURCE_DIR
 #target_link_libraries(benchmark_mc_cpu PRIVATE stock_market_monte_carlo benchmark::benchmark)
 
 add_executable(visualize_rng visualize_rng.cpp)
-target_link_libraries(visualize_rng PRIVATE stock_market_monte_carlo imgui implot)
+target_link_libraries(visualize_rng PRIVATE imgui implot fmt::fmt-header-only)
 target_include_directories(visualize_rng PRIVATE "${implot_SOURCE_DIR}")
+
+add_executable(visualize_dist visualize_distribution.cpp)
+target_link_libraries(visualize_dist PRIVATE imgui implot fmt::fmt-header-only)
+target_include_directories(visualize_dist PRIVATE "${implot_SOURCE_DIR}")
 
 ## with GPU
 #add_executable(example_gpu example_gpu.cpp)
@@ -41,3 +45,13 @@ target_link_libraries(benchmark_mc_gpu PRIVATE stock_market_monte_carlo benchmar
 
 #add_executable(google_benchmark_mc_gpu google_benchmark_mc_gpu.cpp)
 #target_link_libraries(google_benchmark_mc_gpu PRIVATE stock_market_monte_carlo benchmark::benchmark)
+
+
+### Rection variant
+add_executable(benchmark_mc_gpu_reduceBlock benchmark_mc_gpu_reduceBlock.cpp)
+target_link_libraries(benchmark_mc_gpu_reduceBlock PRIVATE stock_market_monte_carlo benchmark::benchmark)
+
+add_executable(example_gui_simulated_gpu_reduceBlock gui_simulated_gpu_reduceBlock.cpp)
+target_link_libraries(example_gui_simulated_gpu_reduceBlock PRIVATE stock_market_monte_carlo imgui implot)
+target_include_directories(example_gui_simulated_gpu_reduceBlock PRIVATE "${implot_SOURCE_DIR}")
+

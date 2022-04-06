@@ -39,7 +39,7 @@
 #include <glad/glad.h>  // Initialize with gladLoadGL()
 
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING2)
-#define GLFW_INCLUDE_NONE  // GLFW including OpenGL headers causes ambiguity or
+#define GLFW_INCLUDE_NONE       // GLFW including OpenGL headers causes ambiguity or
 // multiple definition errors.
 #include <glbinding/Binding.h>  // Initialize with glbinding::Binding::initialize()
 #include <glbinding/gl/gl.h>
@@ -63,6 +63,47 @@ using namespace gl;
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+}
+
+static double cumulative_normal_standard(double d)
+{
+  const double       A1 = 0.31938153;
+  const double       A2 = -0.356563782;
+  const double       A3 = 1.781477937;
+  const double       A4 = -1.821255978;
+  const double       A5 = 1.330274429;
+  const double RSQRT2PI = 0.39894228040143267793994605993438;
+
+  double
+      K = 1.0 / (1.0 + 0.2316419 * fabs(d));
+
+  double cnd = RSQRT2PI * exp(- 0.5 * d * d) *
+            (K * (A1 + K * (A2 + K * (A3 + K * (A4 + K * A5)))));
+
+  if (d > 0)
+    cnd = 1.0 - cnd;
+
+  return cnd;
+}
+
+double cumulative_normal(double x, double mu, double s){
+  // simply move and scaleso we can use standard cumulative normal distribution
+  return cumulative_normal_standard((x-mu)/s);
+}
+
+double cumulative_normal_truncleft(double x, double mu, double s, double a){
+  //https://en.wikipedia.org/wiki/Truncated_normal_distribution
+  double alpha = (a - mu)/s;
+
+  // trunc left, not right -> beta = +inf, PHI(beta) = 1.0
+  double Z = 1.0 - cumulative_normal_standard(alpha);
+  return (cumulative_normal_standard((x-mu)/s) - cumulative_normal_standard(alpha)) / Z;
+}
+
+float normal(float x, float m, float s) {
+  static const float inv_sqrt_2pi = 0.3989422804014327;
+  float a = (x - m) / s;
+  return inv_sqrt_2pi / s * std::exp(-0.5f * a * a);
 }
 
 double rng_uniform(float min, float max) {
@@ -91,36 +132,21 @@ unsigned TausStep(unsigned int &z, int S1, int S2, int S3, unsigned int M) {
   unsigned b = (((z << S1) ^ z) >> S2);
   return z = (((z & M) << S3) ^ b);
 }
-unsigned LCGStep(unsigned int &z, unsigned int A, unsigned int C) {
-  return z = (A * z + C);
-}
-float HybridTaus(unsigned int &z1,
-                 unsigned int &z2,
-                 unsigned int &z3,
-                 unsigned int &z4) {
+unsigned LCGStep(unsigned int &z, unsigned int A, unsigned int C) { return z = (A * z + C); }
+float HybridTaus(unsigned int &z1, unsigned int &z2, unsigned int &z3, unsigned int &z4) {
   // Combined period is lcm(p1,p2,p3,p4)~ 2^121
-  return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^
-                                       TausStep(z2, 2, 25, 4, 4294967288UL) ^
-                                       TausStep(z3, 3, 11, 17, 4294967280UL) ^
-                                       LCGStep(z4, 1664525, 1013904223UL));
+  return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^ TausStep(z2, 2, 25, 4, 4294967288UL) ^
+                                       TausStep(z3, 3, 11, 17, 4294967280UL) ^ LCGStep(z4, 1664525, 1013904223UL));
 }
 
-float HybridTausSimple(unsigned int &z1,
-                       unsigned int &z2,
-                       unsigned int &z3,
-                       unsigned int &z4) {
+float HybridTausSimple(unsigned int &z1, unsigned int &z2, unsigned int &z3, unsigned int &z4) {
   // Combined period is lcm(p1,p2,p3,p4)~ 2^121
-  return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^
-                                       TausStep(z2, 2, 25, 4, 4294967288UL));
+  return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^ TausStep(z2, 2, 25, 4, 4294967288UL));
 }
 
-float HybridTausMedium(unsigned int &z1,
-                       unsigned int &z2,
-                       unsigned int &z3,
-                       unsigned int &z4) {
+float HybridTausMedium(unsigned int &z1, unsigned int &z2, unsigned int &z3, unsigned int &z4) {
   // Combined period is lcm(p1,p2,p3,p4)~ 2^121
-  return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^
-                                       TausStep(z2, 2, 25, 4, 4294967288UL) ^
+  return float(2.3283064365387e-10) * (TausStep(z1, 13, 19, 12, 4294967294UL) ^ TausStep(z2, 2, 25, 4, 4294967288UL) ^
                                        TausStep(z3, 3, 11, 17, 4294967280UL));
 }
 
@@ -160,7 +186,7 @@ int main(int argc, char *argv[]) {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);  // Required on Mac
+  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
 #else
   // GL 3.0 + GLSL 130
   const char *glsl_version = "#version 130";
@@ -173,8 +199,7 @@ int main(int argc, char *argv[]) {
   // Create window with graphics context
   int window_width = 1280;
   int window_height = 720;
-  GLFWwindow *window = glfwCreateWindow(
-      window_width, window_height, "RNG distribution (1D)", nullptr, nullptr);
+  GLFWwindow *window = glfwCreateWindow(window_width, window_height, "RNG distribution (1D)", nullptr, nullptr);
   if (window == nullptr) return 1;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);  // Enable vsync
@@ -191,9 +216,7 @@ int main(int argc, char *argv[]) {
   glbinding::Binding::initialize();
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING3)
   bool err = false;
-  glbinding::initialize([](const char *name) {
-    return (glbinding::ProcAddress)glfwGetProcAddress(name);
-  });
+  glbinding::initialize([](const char *name) { return (glbinding::ProcAddress)glfwGetProcAddress(name); });
 #else
   bool err = false;  // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader
                      // is likely to requires some form of initialization.
@@ -222,24 +245,11 @@ int main(int argc, char *argv[]) {
   ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
   // Main loop
-  std::vector<float> values;
-  int maxval = 1129;
-  std::vector<unsigned int> counts(maxval, 0);
-  unsigned int rstate[] = {0, 21701, 1297, 65537};
+  std::vector<float> xs, ys, ysc, ysc2;
+  float maxval = 4, minval = -4;
+  float mean = 0, std = 1;
   int prev_n = 0;
   bool pause = 0;
-
-  // seeds for xorshift rng
-  std::random_device rd;  // only used once to initialise (seed) engine
-  std::mt19937 rng(
-      rd());  // random-number engine used (Mersenne-Twister in this case)
-  std::uniform_int_distribution<unsigned int> uni(
-      0, UINT32_MAX);  // guaranteed unbiased
-
-  std::vector<unsigned int> prng_seeds(n, 0);
-  for (unsigned int i = 0; i < n; i += 1) {
-    prng_seeds[i] = uni(rng);
-  }
 
   while (!glfwWindowShouldClose(window)) {
     // Poll and handle events (inputs, window resize, etc.)
@@ -273,53 +283,56 @@ int main(int argc, char *argv[]) {
     // simulations are below this
     ImGui::Indent(0.25 * window_width);
     ImGui::SetNextItemWidth(0.5 * window_width);
-    ImGui::SliderInt("N values?", &n, 0, 100000);
+    ImGui::SliderInt("N values?", &n, 0, 10000);
     ImGui::SetNextItemWidth(0.5 * window_width);
-    ImGui::SliderInt("max?", &maxval, 0, 2000);
+    ImGui::SliderFloat("max?", &maxval, 0, 20);
+    ImGui::SetNextItemWidth(0.5 * window_width);
+    ImGui::SliderFloat("min?", &minval, -20, 20);
+    ImGui::SetNextItemWidth(0.5 * window_width);
+    ImGui::SliderFloat("mean?", &mean, -10, 10);
+    ImGui::SetNextItemWidth(0.5 * window_width);
+    ImGui::SliderFloat("std?", &std, 0.000001, 10);
+    ImGui::Unindent(0.25 * window_width);
+
     if (prev_n != n) {
       pause = 0;
       prev_n = n;
     }
-    ImGui::Unindent(0.25 * window_width);
 
     // recompute
     ImGui::Indent(0.5 * window_width);
     ImGui::Checkbox("Pause?", &pause);
     ImGui::Unindent(0.5 * window_width);
     if (!pause) {
-      // generate seeds for xorshift PRNG
-      prng_seeds.resize(n);
-      for (unsigned int i = 0; i < n; i += 1) {
-        prng_seeds[i] = uni(rng);
-      }
-      // reset counters
-      counts.resize(maxval);
-      std::fill(counts.begin(), counts.end(), 0);
+      xs.resize(n);
+      ys.resize(n);
+      ysc.resize(n);
+      ysc2.resize(n);
 
-      // generate random numbers
-      unsigned int prng_seed = prng_seeds[0];
-      for (uint i = 0; i < n; i++) {
-        //        unsigned int idx = maxval * HybridTaus(rstate[0], rstate[1],
-        //        rstate[2], rstate[3]);
-        prng_seed = xorshift(prng_seed);
-        unsigned int idx = prng_seed % maxval;
-        if (idx < 0 || idx >= maxval) {
-          printf("idx: %d ", idx);
-          exit(0);
-        }
-        counts[idx] += 1;
+      float trunc_a = mean - std;
+      float trunc_b = mean + 10000* std;
+
+      float left = std::max(minval, trunc_a);
+      float right = std::min(maxval, trunc_b);
+      float step = float(right - left) / n;
+
+      float cur = left;
+      for (int i = 0; i < n; i++) {
+        xs[i] = cur;
+        ys[i] = normal(cur, mean, std);
+        ysc[i] = cumulative_normal(cur, mean, std);
+        ysc2[i] = cumulative_normal_truncleft(cur, mean, std, trunc_a);
+        cur += step;
       }
     }
 
     // Plot
-    if (ImPlot::BeginPlot(
-            "My Plot", ImVec2(-1, height - 100), ImPlotAxisFlags_AutoFit)) {
-      ImPlot::SetupAxes(
-          "idx", "count", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
-      //      ImPlot::PlotLine(fmt::format("Histogram").c_str(), counts.data(),
-      //      counts.size());
-      ImPlot::PlotBars(
-          fmt::format("Histogram").c_str(), counts.data(), counts.size(), 1.0); //0.67);
+    if (ImPlot::BeginPlot("My Plot", ImVec2(-1, height - 200), ImPlotAxisFlags_AutoFit)) {
+      ImPlot::SetupAxes("x", "y", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+      ImPlot::SetupLegend(ImPlotLegendFlags_Outside);
+      ImPlot::PlotLine(fmt::format("Normal PDF").c_str(), xs.data(), ys.data(), ys.size());
+      ImPlot::PlotLine(fmt::format("Normal CDF").c_str(), xs.data(), ysc.data(), ysc.size());
+      ImPlot::PlotLine(fmt::format("Normal CDF, left trunc mu-std").c_str(), xs.data(), ysc2.data(), ysc2.size());
     }
     ImPlot::EndPlot();
 

@@ -40,7 +40,7 @@
 #include <glad/glad.h>  // Initialize with gladLoadGL()
 
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING2)
-#define GLFW_INCLUDE_NONE  // GLFW including OpenGL headers causes ambiguity or
+#define GLFW_INCLUDE_NONE       // GLFW including OpenGL headers causes ambiguity or
 // multiple definition errors.
 #include <glbinding/Binding.h>  // Initialize with glbinding::Binding::initialize()
 #include <glbinding/gl/gl.h>
@@ -80,78 +80,119 @@ double rng_normal(float mean, float std) {
   return dist(e2);
 }
 
-void update_quartiles(std::vector<float> &quartiles,
-                      std::vector<float> &vec,
-                      long n_el) {
-  // for find quartiles we don't need to fully sort, just get the right value at
-  // the right place this is O(n) instead of O(n log n) for full sorting, so a
-  // big difference for large vectors!
-  // https://stackoverflow.com/questions/11964552/finding-quartiles
+static double cumulative_normal_standard(double d) {
+  const double A1 = 0.31938153;
+  const double A2 = -0.356563782;
+  const double A3 = 1.781477937;
+  const double A4 = -1.821255978;
+  const double A5 = 1.330274429;
+  const double RSQRT2PI = 0.39894228040143267793994605993438;
 
-  //    // nth_element modifies the vector, which messes things up when using
-  //    openMP
-  //    // make a copy so we don't modify the original values
-  std::vector<float> vec2(n_el + 1);
-  std::copy(vec.begin(), vec.begin() + n_el, vec2.begin());
+  double K = 1.0 / (1.0 + 0.2316419 * fabs(d));
 
-  auto const Q1 = n_el / 4;
-  auto const Q2 = n_el / 2;
-  auto const Q3 = Q1 + Q2;
+  double cnd = RSQRT2PI * exp(-0.5 * d * d) * (K * (A1 + K * (A2 + K * (A3 + K * (A4 + K * A5)))));
 
-  auto last_it = vec2.begin() + n_el;
-  std::nth_element(vec2.begin(), vec2.begin() + Q1, last_it);
-  std::nth_element(vec2.begin() + Q1 + 1, vec2.begin() + Q2, last_it);
-  std::nth_element(vec2.begin() + Q2 + 1, vec2.begin() + Q3, last_it);
+  if (d > 0) cnd = 1.0 - cnd;
 
-  // minimum and maximum
-  float min_value = *min_element(vec2.begin(), last_it);
-  float max_value = *max_element(vec2.begin(), last_it);
-
-  quartiles = {min_value, vec2.at(Q1), vec2.at(Q2), vec2.at(Q3), max_value};
+  return cnd;
 }
 
-void update_mean_std(float &mean,
-                     float &std,
-                     std::vector<float> &v,
-                     long n_el) {
-  double sum = std::accumulate(v.begin(), v.begin() + n_el, 0.0);
-  mean = sum / n_el;
-
-  double sqsum =
-      std::inner_product(v.begin(), v.begin() + n_el, v.begin(), 0.0);
-  std = std::sqrt(sqsum / n_el - mean * mean);
+double cumulative_normal(double x, double mu, double s) {
+  // simply move and scaleso we can use standard cumulative normal distribution
+  return cumulative_normal_standard((x - mu) / s);
 }
 
-long update_count_below_min(float &min_final_amount,
-                            const std::vector<float> &final_values,
-                            long n_simulations) {
-  long count_below_min = 0;
-  for (long i = 0; i < n_simulations; i++) {
-    float val = final_values[i];
-    if (val == -1) {
-      // TODO this should never happen, but it does with openMP....
-      fmt::print("final value[{}] == -1!\n", i);
-    }
-    if (val < min_final_amount) count_below_min++;
+double cumulative_normal_truncleft(double x, double mu, double s, double a) {
+  // https://en.wikipedia.org/wiki/Truncated_normal_distribution
+  double alpha = (a - mu) / s;
+
+  // trunc left, not right -> beta = +inf, PHI(beta) = 1.0
+  double Z = 1.0 - cumulative_normal_standard(alpha);
+  return (cumulative_normal_standard((x - mu) / s) - cumulative_normal_standard(alpha)) / Z;
+}
+
+float normal(float x, float m, float s) {
+  static const float inv_sqrt_2pi = 0.3989422804014327;
+  float a = (x - m) / s;
+  return inv_sqrt_2pi / s * std::exp(-0.5f * a * a);
+}
+
+double RationalApproximation(double t) {
+  // Abramowitz and Stegun formula 26.2.23.
+  // The absolute value of the error should be less than 4.5 e-4.
+  double c[] = {2.515517, 0.802853, 0.010328};
+  double d[] = {1.432788, 0.189269, 0.001308};
+  return t - ((c[2] * t + c[1]) * t + c[0]) / (((d[2] * t + d[1]) * t + d[0]) * t + 1.0);
+}
+
+double NormalCDFInverse(double p) {
+  // https://www.johndcook.com/blog/cpp_phi_inverse/
+  if (p <= 0.0 || p >= 1.0) {
+    throw std::invalid_argument(
+        fmt::format("Invalid input argument ({:f}); must be larger than 0 but less than 1.", p));
   }
+
+  // See article above for explanation of this section.
+  if (p < 0.5) {
+    // F^-1(p) = - G^-1(p)
+    return -RationalApproximation(sqrt(-2.0 * log(p)));
+  } else {
+    // F^-1(p) = G^-1(1-p)
+    return RationalApproximation(sqrt(-2.0 * log(1 - p)));
+  }
+}
+
+void update_quartiles(std::vector<float> &quartiles, float &mean, float &std) {
+  // todo estimate quartiles from mean/variance, assuming gaussian distribution of final values? (law large numbers)
+  std::vector<double> percs = {0.1, 0.25, 0.5, 0.75, 0.9};
+  for (int i = 0; i < percs.size(); i++) {
+    quartiles[i] = std * float(NormalCDFInverse(percs[i])) + mean;
+    // truncuate normal distribution
+    quartiles[i] = std::max(float(0.0), std::max(mean - std, quartiles[i]));
+  }
+}
+
+void update_mean_std(float &mean, float &std, std::vector<float> &means, std::vector<float> &variances) {
+  // population mean: just mean of means
+  double sum = std::accumulate(means.begin(), means.end(), 0.0);
+  mean = sum / means.size();
+
+  // population variance: https://stats.stackexchange.com/questions/25848/how-to-sum-a-standard-deviation
+  // -> average the variances; then you can take square root to get the average standard deviation
+  double sum_var = std::accumulate(variances.begin(), variances.end(), 0.0);
+  double mean_var = sum / variances.size();
+  std = std::sqrt(mean_var);
+}
+
+float normal_pdf(float x, float m, float s) {
+  static const float inv_sqrt_2pi = 0.3989422804014327;
+  float a = (x - m) / s;
+
+  return inv_sqrt_2pi / s * std::exp(-0.5f * a * a);
+}
+
+long update_count_below_min(float &min_final_amount, float mean, float std, long n_simulations) {
+  // central limit theorem: totals are normally distributed (for large N)
+  // -> estimate count from mean/var
+  float prob = normal_pdf(min_final_amount, mean, std);
+  long count_below_min = n_simulations * prob;
   return count_below_min;
 }
 
 int main(int argc, char *argv[]) {
   fmt::print("argc: {}\n", argc);
   long max_n_simulations;
-  unsigned int n_periods;
-  if (argc == 3) {
+  int n_periods, n_gpus;
+  if (argc == 4) {
     char *end;
-    n_periods = long(std::strtol(argv[1], &end, 10));
-    max_n_simulations = long(std::strtol(argv[2], &end, 10));
-    fmt::print("n_periods: {} | max_n_simulations: {}\n",
-               n_periods,
-               max_n_simulations);
+    n_gpus = atoi(argv[1]);
+    n_periods = std::strtol(argv[2], &end, 10);
+    max_n_simulations = long(std::strtol(argv[3], &end, 10));
+    fmt::print("n_periods: {} | max_n_simulations: {}\n", n_periods, max_n_simulations);
   } else {
     fmt::print(
-        "usage: example_gui_simulated <n_months> <n_simulations>, eg "
-        "example_gui_simulated 360 100000");
+        "usage: example_gui_simulated <n_gpus> <n_months> <n_simulations>, eg "
+        "example_gui_simulated 1 360 100000");
     exit(0);
   }
 
@@ -162,35 +203,58 @@ int main(int argc, char *argv[]) {
 
   ////simulate by sampling from historical monthly returns
   std::string historical_returns_csv = "data/SP500_monthly_returns.csv";
-  std::vector<float> historical_returns =
-      read_historical_returns(historical_returns_csv);
-  fmt::print("Number of historical data points from which we can sample: {}\n",
-             historical_returns.size());
+  std::vector<float> historical_returns = read_historical_returns(historical_returns_csv);
+  fmt::print("Number of historical data points from which we can sample: {}\n", historical_returns.size());
 
   // limit max shown for plotting?
   long max_displayed_plots = 25;
 
   // buffers to store results
-  std::vector<float> final_values(max_n_simulations, -1);
+  std::vector<float> means;
+  std::vector<float> variances;
   // just for visualization
   // calculate 10x more than we show, so we can do random sample to indicate
   // calculations are still going on
   long max_n_visualisation = 10 * max_displayed_plots;
   std::vector<float> final_values_visualized(max_n_visualisation, -1);
-  std::vector<std::vector<float>> mc_data(max_n_visualisation,
-                                          std::vector<float>(n_periods + 1));
+  std::vector<std::vector<float>> mc_data(max_n_visualisation, std::vector<float>(n_periods + 1));
 
-  // for statistics: compute <n_simulations> final values
+  // GPU MC sampling in background thread:
+  // https://hackernoon.com/learn-c-multi-threading-in-5-minutes-8b881c92941f
   std::atomic<long> n_simulations = 0;
-  std::thread t1(mc_simulations,
+  std::thread t1(mc_simulations_gpu_reduceBlock,
                  std::ref(n_simulations),
                  max_n_simulations,
                  n_periods,
                  initial_capital,
                  std::ref(historical_returns),
-                 std::ref(final_values));
+                 std::ref(means),
+                 std::ref(variances),
+                 n_gpus);
 
-  // for visualization: compute <max_displayed_plots>, saving entire trajectory
+  long count_below_min;
+
+  //  //DEBUG
+  //  t1.join();
+  //  count_below_min = 0;
+  //  for (long i = 0; i < final_values.size(); i++) {
+  ////      fmt::print("final value {}: {}\n", i, final_values[i]);
+  //    //    if (final_values[i] == -1)
+  //    //      fmt::print("final value[{}] == -1!\n", i);
+  //    if (final_values[i] < initial_capital)
+  //      count_below_min++;
+  //  }
+  //  fmt::print("{:d}/{:d} ({:.4f}%) are below target final value",
+  //             count_below_min, final_values.size(),
+  //             100 * float(count_below_min) / final_values.size());
+  //  float mean1,std1;
+  //  update_mean_std(mean1, std1, final_values, final_values.size());
+  //  fmt::print("mean: {:.2f} | std: {:.2f}", mean1, std1);
+  //  exit(0);
+  //  //   END DEBUG
+
+  // CPU computes <max_displayed_plots> for visualizlation, saving entire
+  // trajectory
   std::atomic<long> n_simulations_visualized = 0;
   std::thread t2(mc_simulations_keepdata,
                  std::ref(n_simulations_visualized),
@@ -200,24 +264,7 @@ int main(int argc, char *argv[]) {
                  std::ref(historical_returns),
                  std::ref(mc_data),
                  std::ref(final_values_visualized));
-  long count_below_min;
-
-  //  //DEBUG
-  //  t1.join();
-  //  count_below_min = 0;
-  //  for (long i = 0; i < n_simulations; i++) { // TODO i<n_simulations?
-  ////    fmt::print("final value {}: {}\n", i, final_values[i]);
-  ////    fmt::print("mc_data final : {}\n", i, mc_data[i][n_periods+1]);
-  ////    if (final_values[i] == -1)
-  ////      fmt::print("final value[{}] == -1!\n", i);
-  //    if (final_values[i] < initial_capital)
-  //      count_below_min++;
-  //  }
-  //  fmt::print("{:d}/{:d} ({:.4f}%) are below target final value",
-  //             count_below_min, n_simulations,
-  //             100 * float(count_below_min) / n_simulations);
-  //  exit(0);
-  // END DEBUG
+  t2.join();
 
   //-------------------------------------
   // GUI stuff
@@ -241,7 +288,7 @@ int main(int argc, char *argv[]) {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);  // Required on Mac
+  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
 #else
   // GL 3.0 + GLSL 130
   const char *glsl_version = "#version 130";
@@ -254,11 +301,8 @@ int main(int argc, char *argv[]) {
   // Create window with graphics context
   int window_width = 1280;
   int window_height = 720;
-  GLFWwindow *window = glfwCreateWindow(window_width,
-                                        window_height,
-                                        "MC Stock Market simulation - GPU",
-                                        nullptr,
-                                        nullptr);
+  GLFWwindow *window =
+      glfwCreateWindow(window_width, window_height, "MC Stock Market simulation - GPU", nullptr, nullptr);
   if (window == nullptr) return 1;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);  // Enable vsync
@@ -275,9 +319,7 @@ int main(int argc, char *argv[]) {
   glbinding::Binding::initialize();
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING3)
   bool err = false;
-  glbinding::initialize([](const char *name) {
-    return (glbinding::ProcAddress)glfwGetProcAddress(name);
-  });
+  glbinding::initialize([](const char *name) { return (glbinding::ProcAddress)glfwGetProcAddress(name); });
 #else
   bool err = false;  // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader
                      // is likely to requires some form of initialization.
@@ -346,8 +388,7 @@ int main(int argc, char *argv[]) {
     // simulations are below this
     ImGui::Indent(0.25 * window_width);
     ImGui::SetNextItemWidth(0.5 * window_width);
-    ImGui::SliderFloat(
-        "Target?", &min_final_amount, 0, max_value_slider);
+    ImGui::SliderFloat("Target?", &min_final_amount, 0, max_value_slider);
     ImGui::SetNextItemWidth(0.5 * window_width);
     ImGui::InputFloat("Slider Value",
                       &min_final_amount,
@@ -356,66 +397,62 @@ int main(int argc, char *argv[]) {
                       "%.1f");
     ImGui::Unindent(0.25 * window_width);
 
-    //        // recompute only if something changes
-    if ((prev_n_simulations != n_simulations) ||
-        (prev_min_final_amount != min_final_amount)) {
+    // recompute only if something changes
+    // todo for GPU code, n_simulations isn't ever correct; only when everything's done
+    if ((prev_n_simulations != n_simulations) || (prev_min_final_amount != min_final_amount)) {
       fmt::print("Update detected! Recomputing statistics... ");
       if (prev_n_simulations != n_simulations) {
         prev_n_simulations = n_simulations;
-        update_quartiles(quartiles, final_values, n_simulations);
-        update_mean_std(mean, std, final_values, n_simulations);
+        // n_el isn't really accurate...
+        update_mean_std(mean, std, means, variances);
+        update_quartiles(quartiles, mean, std);
         max_value_slider = 10 * quartiles[3];
         //            *max_element(final_values.begin(), final_values.end());
       }
       if (prev_min_final_amount != min_final_amount) {
         prev_min_final_amount = min_final_amount;
       }
-      count_below_min =
-          update_count_below_min(min_final_amount, final_values, n_simulations);
+      count_below_min = update_count_below_min(min_final_amount, mean, std, means.size());
       fmt::print("done!\n");
     }
 
     // Plot
     if (ImPlot::BeginPlot(
             "My Plot",
-            ImVec2(-1, height - 200),  // leave some space for text below graph
-            ImPlotFlags_NoLegend)) {   // | ImPlotAxisFlags_AutoFit)) {
-      // plot config
-      ImPlot::SetupAxes("Time (Months)",
-                        "Value",
-                        ImPlotAxisFlags_AutoFit,
-                        ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_LockMin);
+            ImVec2(-1, height - 200)  // leave some space for text below graph
+                                      //                          ,ImPlotFlags_NoLegend | ImPlotAxisFlags_AutoFit)
+            )) {
+      // Limit number for performance & stop changing if all simulations are done
+      if (n_simulations < max_n_simulations && n_simulations_visualized > max_displayed_plots) {
+        for (int n_shown = 0; n_shown < max_displayed_plots; n_shown++) {
+          if (n_shown >= n_simulations_visualized) break;
+          int idx = n_shown;
 
-      // plot all lines
-      // Limit number for performance & stop changing if all simulations are
-      // done
-      for (int n_shown = 0; n_shown < max_displayed_plots; n_shown++) {
-        if (n_shown >= n_simulations_visualized) break;
-        int idx = n_shown;
-        if (n_simulations < max_n_simulations &&
-            n_simulations_visualized > max_displayed_plots)
+          // ImPlot::SetupAxes("Time (Months)", "Value");//, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);// |
+          // ImPlotAxisFlags_LockMin);
           idx = int(rng_uniform(0, mc_data.size()));
+          ImPlot::PlotLine(fmt::format("Simulation {}", idx).c_str(), mc_data.at(idx).data(), mc_data.at(idx).size());
+        }
+        // plot zero line
+        std::vector<float> vec1(n_periods, 0);
+        ImPlot::PlotLine("zero", vec1.data(), vec1.size());
 
-        ImPlot::PlotLine(fmt::format("Simulation {}", idx).c_str(),
-                         mc_data.at(idx).data(),
-                         mc_data.at(idx).size());
+        // plot horizontal line of desired final amount
+        std::vector<float> vec2(n_periods, min_final_amount);
+        ImPlot::PlotLine("MINIMUM", vec2.data(), vec2.size());
+      } else {
+        ImPlot::PlotHistogram("histogram",
+                              means.data(),
+                              means.size(),
+                              ImPlotBin_Sqrt,  // Sturges,
+                              false,
+                              false);  // cumulative, density
       }
-
-      // plot zero line
-      std::vector<float> vec1(n_periods, 0);
-      ImPlot::PlotLine("MINIMUM", vec1.data(), vec1.size());
-
-      // plot horizontal line of desired final amount
-      std::vector<float> vec2(n_periods, min_final_amount);
-      ImPlot::PlotLine("MINIMUM", vec2.data(), vec2.size());
 
       ImPlot::EndPlot();
     }
 
-    ImGui::Text(
-        "%s",
-        fmt::format("#simulations: {:d}/{:d}", n_simulations, max_n_simulations)
-            .c_str());
+    ImGui::Text("%s", fmt::format("#simulations: {:d}/{:d}", n_simulations, max_n_simulations).c_str());
     ImGui::Text("Application average %.1f FPS", ImGui::GetIO().Framerate);
 
     // calculate and print `statistics
@@ -429,14 +466,13 @@ int main(int argc, char *argv[]) {
                             quartiles.at(4))
                     .c_str());
 
-    ImGui::Text("%s",
-                fmt::format("mean: {:.2f} | std: {:.2f}", mean, std).c_str());
+    ImGui::Text("%s", fmt::format("mean: {:.2f} | std: {:.2f}", mean, std).c_str());
 
     ImGui::Text("%s",
                 fmt::format("{:d}/{:d} ({:.4f}%) are below target final value",
                             count_below_min,
-                            n_simulations,
-                            100 * float(count_below_min) / n_simulations)
+                            max_n_simulations,
+                            100 * float(count_below_min) / max_n_simulations)
                     .c_str());
     ImGui::End();
 
@@ -456,15 +492,6 @@ int main(int argc, char *argv[]) {
   // Cleanup
   t1.join();
   t2.join();
-  count_below_min = 0;
-  for (long i = 0; i < n_simulations; i++) {
-    if (final_values[i] < initial_capital) count_below_min++;
-  }
-  fmt::print("{:d}/{:d} ({:.4f}%) are below target final value\n",
-             count_below_min,
-             n_simulations,
-             100 * float(count_below_min) / n_simulations);
-//  write_vector_file("results.csv", final_values);
 
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
