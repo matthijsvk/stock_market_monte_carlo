@@ -14,7 +14,7 @@
 #include "cuda.h"
 
 //#define DEBUG
-#define THREADS_PER_BLOCK 256
+#define THREADS_PER_BLOCK 64 //256
 
 //==================================================================================
 // CUDA helper functions
@@ -242,35 +242,29 @@ __global__ void mc_simulations_gpu_kernel_reduceBlock(const float *__restrict__ 
 
 template <int blockSize>
 __global__ void compute_sum_kernel(
-    float *__restrict__ arr, const int arr_size, const int n, const int offset, const int stride, const int kernel_id) {
+    float *__restrict__ arr, const long n, const int stride) {
   __shared__ float sdata[blockSize];
-  int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+//  int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int offset = blockIdx.x * blockSize * stride;
 
-  // load first blockSize values from global, coalesced
-  sdata[threadIdx.x] = 0.0;
-  __syncthreads();
-  for (int i = threadIdx.x; i < n; i += blockDim.x) {
-    int idx = offset + i * stride;
-    sdata[threadIdx.x] = arr[idx];
-//    printf("kernel: %d | tid: %d | idx: %d | val: %f\n", kernel_id, i, idx, sdata[threadIdx.x]);
-  }
-  if (global_tid >= n) return;
+  // all threads load from global
+  int idx = offset + threadIdx.x * stride;
+  sdata[threadIdx.x] = 0;
+  if (idx >= n) return;
+  sdata[threadIdx.x] = arr[idx];
   __syncthreads();
 
   reduceAdd<blockSize, float>(sdata, threadIdx.x);
   if (threadIdx.x == 0) {
     arr[offset] = sdata[0];
-//    printf("GPU sum: %f\n", sdata[0]);
   }
 }
 
 float reduce_mean_gpu(std::vector<float> &vec, const long n) {
-  // TODO maybe look at this example:
-  // https://sodocumentation.net/cuda/topic/6566/parallel-reduction--e-g--how-to-sum-an-array-
-  const int block_size = THREADS_PER_BLOCK;
-  dim3 block, grid;
-  block.x = block_size;
-  grid.x = (n + block_size - 1) / block_size;
+  // over 20x faster than CPU (mean of 1B numbers)
+  const int block_size = 64; //THREADS_PER_BLOCK;
+
+  std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
   // get pointers b/c GPU can't use std::vectors
   float *arr = &vec[0];
@@ -279,13 +273,17 @@ float reduce_mean_gpu(std::vector<float> &vec, const long n) {
   fmt::print("Allocating GPU memory: {:L} B = {:L} MB...\n", memsize_arr, memsize_arr >> 20);
   float *arr_d;
   cudaMalloc((void **)&arr_d, memsize_arr);
-  fmt::print("Copying to GPU memory...");
+  fmt::print("Copying to GPU memory...\n");
   cudaMemcpy(arr_d, arr, memsize_arr, cudaMemcpyHostToDevice);
 
-  std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
+  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  fmt::print("transfer data to GPU took {} s!\n", timediff / 1000.0);
+
+  begin = std::chrono::steady_clock::now();
   // split up array in chunks of size blockSize, reduce on those hierarchically
-  // compute required levels
+  // first compute required levels
   int n_levels = 0;
   int m = 1;
   while (m < n) {
@@ -305,17 +303,11 @@ float reduce_mean_gpu(std::vector<float> &vec, const long n) {
       n_visible += block_size;
     }
 
-    // launch the kernels!
-    printf("Level %d, launching %d kernels!\n", level, n_blocks);
-    int this_n_todo = n_todo;
-    for (int b = 0; b < n_blocks; b++) {
-      int size = std::min(block_size, this_n_todo);
-      int offset = b * block_size * stride;
-      compute_sum_kernel<block_size><<<grid, block>>>(arr_d, n, size, offset, stride, b);
-      this_n_todo -= block_size;
-//      printf("Level %d, kernel %d launched!\n", level, b);
-    }
-    // wait till all kernels on this level finish
+    // grid for the whole level
+    dim3 block, grid;
+    block.x = block_size;
+    grid.x = (n_todo + block_size - 1) / block_size;
+    compute_sum_kernel<block_size><<<grid, block>>>(arr_d, n, stride);
     gpuErrchk(cudaDeviceSynchronize());
 
     // update config for next level
@@ -325,8 +317,8 @@ float reduce_mean_gpu(std::vector<float> &vec, const long n) {
     printf("Level %d done!\n", level);
   }
 
-  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  end = std::chrono::steady_clock::now();
+  timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
   fmt::print("GPU kernel itself took {} s!\n", timediff / 1000.0);
 
   // only get 0th element of GPU array, that's the average
@@ -335,9 +327,9 @@ float reduce_mean_gpu(std::vector<float> &vec, const long n) {
   avg /= n;
   cudaFree(arr_d);
 
-  std::chrono::steady_clock::time_point end2 = std::chrono::steady_clock::now();
-  auto timediff2 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - begin).count();
-  fmt::print("GPU kernel + transfer to host took {} s!\n", timediff2 / 1000.0);
+  end = std::chrono::steady_clock::now();
+  timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  fmt::print("GPU kernel + transfer to host took {} s!\n", timediff / 1000.0);
 
   return avg;
 }

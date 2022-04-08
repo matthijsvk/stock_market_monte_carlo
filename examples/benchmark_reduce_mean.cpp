@@ -30,6 +30,7 @@ int main(int argc, char *argv[]) {
   auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
   fmt::print("CPU took {} s!\n", timediff / 1000.0);
 
+  // TODO why does is GPU time reported here so much less than inside reduce_mean_gpu function??? it's just a function call..
   begin = std::chrono::steady_clock::now();
   float mean_gpu = reduce_mean_gpu(vec, vec.size());
   end = std::chrono::steady_clock::now();
