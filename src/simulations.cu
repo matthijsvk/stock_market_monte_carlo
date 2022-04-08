@@ -118,7 +118,6 @@ __global__ void mc_simulations_gpu_kernel(const float *__restrict__ returns,
                                           const int n_periods) {
   // https://cvw.cac.cornell.edu/gpu/memory_arch
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid >= N) return;
 
   // first warp loads returns to shmem
   __shared__ float bufferReturns[1127];
@@ -127,6 +126,7 @@ __global__ void mc_simulations_gpu_kernel(const float *__restrict__ returns,
       bufferReturns[i] = returns[i] * float(0.01);
     }
   }
+  if (tid >= N) return;
   __syncthreads();
 
   // todo Sobol PRNG to avoid shmem bank conflicts?
@@ -145,14 +145,35 @@ __global__ void mc_simulations_gpu_kernel(const float *__restrict__ returns,
   totals[tid] = total;
 }
 
-template <unsigned int blockSize>
-__device__ void warpReduce(volatile double *sdata, unsigned int tid) {
+//-------------------------------------------------------------
+//-------------------------------------------------------------
+
+template <unsigned int blockSize, typename T>
+__device__ void warpReduce(volatile T *sdata, unsigned int tid) {
   if (blockSize >= 64) sdata[tid] += sdata[tid + 32];
   if (blockSize >= 32) sdata[tid] += sdata[tid + 16];
   if (blockSize >= 16) sdata[tid] += sdata[tid + 8];
   if (blockSize >= 8) sdata[tid] += sdata[tid + 4];
   if (blockSize >= 4) sdata[tid] += sdata[tid + 2];
   if (blockSize >= 2) sdata[tid] += sdata[tid + 1];
+}
+
+template <unsigned int blockSize, typename T>
+__device__ void reduceAdd(volatile T *sdata, unsigned int tid) {
+  if (blockSize >= 512) {
+    if (tid < 256) sdata[tid] += sdata[tid + 256];
+    __syncthreads();
+  }
+  if (blockSize >= 256) {
+    if (tid < 128) sdata[tid] += sdata[tid + 128];
+    __syncthreads();
+  }
+  if (blockSize >= 128) {
+    if (tid < 64) sdata[tid] += sdata[tid + 64];
+    __syncthreads();
+  }
+  if (tid < 32) warpReduce<blockSize>(sdata, tid);
+  __syncthreads();
 }
 
 template <int blockSize>
@@ -163,22 +184,21 @@ __global__ void mc_simulations_gpu_kernel_reduceBlock(const float *__restrict__ 
                                                       const long N,
                                                       float initial_capital,
                                                       const int n_periods) {
-  __shared__ float bufferReturns[1127];  // todo n_returns??
-  __shared__ double s_totals[blockSize];
-  __shared__ double s_totals_var[blockSize];  // keep copy b/c we're reducing
-
-  // TODO debug: build/benchmark_mc_gpu_reduceBlock 1 360 425220
+  __shared__ float s_returns[1127];  // todo n_returns??
+  __shared__ float s_totals[blockSize];
+  __shared__ float s_totals_var[blockSize];  // keep copy b/c we're reducing
 
   // https://cvw.cac.cornell.edu/gpu/memory_arch
   int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (global_tid >= N) return;
 
-  // first warp loads returns to shmem
-  if (threadIdx.x < warpSize) {
-    for (int i = threadIdx.x; i < n_returns; i += warpSize) {
-      bufferReturns[i] = returns[i] * float(0.01);
-    }
+  // all threads in the block load from global mem
+  for (int i = threadIdx.x; i < n_returns; i += blockSize) {
+    s_returns[i] = returns[i] * float(0.01);
   }
+  // make sure we don't have weird values anywhere
+  s_totals[threadIdx.x] = 0.0;
+  s_totals_var[threadIdx.x] = 0.0;
+  if (global_tid >= N) return;  // quit only here so we still use all threads to load from global mem!!
   __syncthreads();
 
   // todo Sobol PRNG to avoid shmem bank conflicts?
@@ -191,79 +211,136 @@ __global__ void mc_simulations_gpu_kernel_reduceBlock(const float *__restrict__ 
   int return_idx;
   for (int i = 0; i < n_periods; i++) {
     prng_state = xorshift(prng_state);
-    return_idx = n_returns * (prng_state * float(2.3283064e-10));  // powf(2, -32));
-    total += total * bufferReturns[return_idx];
+    return_idx = n_returns * (prng_state * float(2.3283064e-10));
+    total += total * s_returns[return_idx];
   }
-  s_totals[threadIdx.x] = float(total);
-  s_totals_var[threadIdx.x] = float(total);
+  __syncthreads();  // not sure why this is needed, but compute-sanitizer says it is...
+  s_totals[threadIdx.x] = total;
+  s_totals_var[threadIdx.x] = total;
   __syncthreads();
 
-  //  // compute mean and variance in a single iteration
-  //  // https://www.johndcook.com/blog/standard_deviation/
-  //  if (threadIdx.x == 0) {
-  //    double m = s_totals[0], prev_m = s_totals[0];
-  //    double s = 0, prev_s = 0;
-  //    for (int i = 1; i < blockSize; i++) {
-  //      double x = s_totals[i];
-  //      m = prev_m + (x - prev_m) / i;
-  //      s = prev_s + (x - prev_m) * (x - m);
-  //      // set up for next iteration
-  //      prev_m = m;
-  //      prev_s = s;
-  //    }
-  //    float mean = float(m);
-  //    float var = float(s) / (blockSize - 1);
-  //    totals[blockIdx.x] = mean;
-  //    variances[blockIdx.x] = var;
-  //  }
-
-  // calc mean using the shmem buffer: hierarchical reduction
-  // https://developer.download.nvidia.com/compute/cuda/1.1-Beta/x86_website/projects/reduction/doc/reduction.pdf
-  // reduction is destructive, so need to do everything twice to have copy we can use for variance computation!
-  unsigned int tid = threadIdx.x;
-  if (blockSize >= 512) {
-    if (tid < 256) s_totals[tid] += s_totals[tid + 256];
-    __syncthreads();
-  }
-  if (blockSize >= 256) {
-    if (tid < 128) s_totals[tid] += s_totals[tid + 128];
-    __syncthreads();
-  }
-  if (blockSize >= 128) {
-    if (tid < 64) s_totals[tid] += s_totals[tid + 64];
-    __syncthreads();
-  }
-  if (tid < 32) warpReduce<blockSize>(s_totals, tid);
-  __syncthreads();
+  //   calc mean using the shmem buffer: hierarchical reduction
+  //   https://developer.download.nvidia.com/compute/cuda/1.1-Beta/x86_website/projects/reduction/doc/reduction.pdf
+  //   reduction is destructive, so need to do everything twice to have copy we can use for variance computation!
+  reduceAdd<blockSize, float>(s_totals, threadIdx.x);
+  float mean = s_totals[0] / blockSize;
 
   // now compute variance
-  float mean = s_totals[0] / blockSize;
-  s_totals_var[tid] -= mean;
-  s_totals_var[tid] = s_totals_var[tid] * s_totals_var[tid];
-  // and reduce
-  if (blockSize >= 512) {
-    if (tid < 256) s_totals_var[tid] += s_totals_var[tid + 256];
-    __syncthreads();
-  }
-  if (blockSize >= 256) {
-    if (tid < 128) s_totals_var[tid] += s_totals_var[tid + 128];
-    __syncthreads();
-  }
-  if (blockSize >= 128) {
-    if (tid < 64) s_totals_var[tid] += s_totals_var[tid + 64];
-    __syncthreads();
-  }
-  if (tid < 32) warpReduce<blockSize>(s_totals_var, tid);
+  s_totals_var[threadIdx.x] -= mean;
+  s_totals_var[threadIdx.x] = s_totals_var[threadIdx.x] * s_totals_var[threadIdx.x];
   __syncthreads();
+  reduceAdd<blockSize, float>(s_totals_var, threadIdx.x);
 
-  if (tid == 0) {
+  if (threadIdx.x == 0) {
+    float mean = s_totals[0] / blockSize;
     float var = s_totals_var[0] / blockSize;
     totals[blockIdx.x] = mean;
     variances[blockIdx.x] = var;
-//    printf("block %d mean= %f | var=%f\n", blockIdx.x, mean, var);
+    printf("block %3d: \t mean= %10.2f | var=%15.2f\n", blockIdx.x, mean, var);
   }
 }
 
+template <int blockSize>
+__global__ void compute_sum_kernel(
+    float *__restrict__ arr, const int arr_size, const int n, const int offset, const int stride, const int kernel_id) {
+  __shared__ float sdata[blockSize];
+  int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+  // load first blockSize values from global, coalesced
+  sdata[threadIdx.x] = 0.0;
+  __syncthreads();
+  for (int i = threadIdx.x; i < n; i += blockDim.x) {
+    int idx = offset + i * stride;
+    sdata[threadIdx.x] = arr[idx];
+//    printf("kernel: %d | tid: %d | idx: %d | val: %f\n", kernel_id, i, idx, sdata[threadIdx.x]);
+  }
+  if (global_tid >= n) return;
+  __syncthreads();
+
+  reduceAdd<blockSize, float>(sdata, threadIdx.x);
+  if (threadIdx.x == 0) {
+    arr[offset] = sdata[0];
+//    printf("GPU sum: %f\n", sdata[0]);
+  }
+}
+
+float reduce_mean_gpu(std::vector<float> &vec, const long n) {
+  // TODO maybe look at this example:
+  // https://sodocumentation.net/cuda/topic/6566/parallel-reduction--e-g--how-to-sum-an-array-
+  const int block_size = THREADS_PER_BLOCK;
+  dim3 block, grid;
+  block.x = block_size;
+  grid.x = (n + block_size - 1) / block_size;
+
+  // get pointers b/c GPU can't use std::vectors
+  float *arr = &vec[0];
+
+  long memsize_arr = n * sizeof(float);
+  fmt::print("Allocating GPU memory: {:L} B = {:L} MB...\n", memsize_arr, memsize_arr >> 20);
+  float *arr_d;
+  cudaMalloc((void **)&arr_d, memsize_arr);
+  fmt::print("Copying to GPU memory...");
+  cudaMemcpy(arr_d, arr, memsize_arr, cudaMemcpyHostToDevice);
+
+  std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+  // split up array in chunks of size blockSize, reduce on those hierarchically
+  // compute required levels
+  int n_levels = 0;
+  int m = 1;
+  while (m < n) {
+    n_levels += 1;
+    m *= block_size;
+  }
+
+  printf("Starting loop...\n");
+  int n_todo = n;
+  int stride = 1;
+  for (int level = 0; level < n_levels; level++) {
+    // count number of blocks required in this level
+    int n_blocks = 0;
+    int n_visible = 0;
+    while (n_visible < n_todo) {
+      n_blocks += 1;
+      n_visible += block_size;
+    }
+
+    // launch the kernels!
+    printf("Level %d, launching %d kernels!\n", level, n_blocks);
+    int this_n_todo = n_todo;
+    for (int b = 0; b < n_blocks; b++) {
+      int size = std::min(block_size, this_n_todo);
+      int offset = b * block_size * stride;
+      compute_sum_kernel<block_size><<<grid, block>>>(arr_d, n, size, offset, stride, b);
+      this_n_todo -= block_size;
+//      printf("Level %d, kernel %d launched!\n", level, b);
+    }
+    // wait till all kernels on this level finish
+    gpuErrchk(cudaDeviceSynchronize());
+
+    // update config for next level
+    n_todo = n_blocks;
+    stride *= block_size;
+
+    printf("Level %d done!\n", level);
+  }
+
+  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  fmt::print("GPU kernel itself took {} s!\n", timediff / 1000.0);
+
+  // only get 0th element of GPU array, that's the average
+  float avg = 0;
+  cudaMemcpy(&avg, arr_d, sizeof(float), cudaMemcpyDeviceToHost);
+  avg /= n;
+  cudaFree(arr_d);
+
+  std::chrono::steady_clock::time_point end2 = std::chrono::steady_clock::now();
+  auto timediff2 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - begin).count();
+  fmt::print("GPU kernel + transfer to host took {} s!\n", timediff2 / 1000.0);
+
+  return avg;
+}
 //==================================================================================
 // single GPU launcher
 //==================================================================================
@@ -279,7 +356,7 @@ void mc_simulations_gpu_launcher(std::vector<float> &returns_vec,
   float *totals = &totals_vec[0];
   float *returns = &returns_vec[0];
 
-  int block_size = THREADS_PER_BLOCK;
+  const int block_size = THREADS_PER_BLOCK;
   dim3 block, grid;
   block.x = block_size;
   grid.x = (N + block_size - 1) / block_size;

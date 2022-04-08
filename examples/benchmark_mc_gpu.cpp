@@ -16,6 +16,7 @@ void update_mean_std(float &mean, float &std, std::vector<float> &v, long n_el) 
     sum += v[i];
   }
   mean = sum / v.size();
+
   sum = 0;
   for (int i = 0; i < v.size(); i++) {
     float tmp = (v[i] - mean);

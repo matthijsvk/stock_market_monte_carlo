@@ -110,9 +110,17 @@ python python/plot_returns.py plot_many_returns --dir=output
 - [x] c++ executable with arguments to avoid need to recompile
 - [x] Monte Carlo simulation with openMP
 - [x] Monte Carlo simulation on GPU
+  - [x] optimize kernel w/ Nsight Compute (fancy local PRNG, shmem, etc)
+  - [x] summarize per-block to reduce CPU-GPU transfers
+  - [ ] multi-GPU
 - [ ] withdrawal strategies
     - [ ] taking out fixed amount every period
     - [ ] taking out some percentage every period
     - [ ] taking out varying percentage every period
+
+
+### debugging
+checking races in CUDA kernel:
+`compute-sanitizer --tool racecheck build/benchmark_mc_gpu_reduceBlock 1 360 1000000`
 
 

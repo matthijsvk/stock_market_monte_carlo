@@ -74,7 +74,7 @@ endif ()
 #list(APPEND CUDA_NVCC_FLAGS )
 
 ## for Profiling
-list(APPEND CUDA_NVCC_FLAGS "-lineinfo --extended-lambda --expt-relaxed-constexpr -Wall -Wextra")
+list(APPEND CUDA_NVCC_FLAGS "-lineinfo") # --extended-lambda --expt-relaxed-constexpr -Wall -Wextra")
 
 ###############################################################################
 # other libraries

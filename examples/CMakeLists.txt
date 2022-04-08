@@ -55,3 +55,6 @@ add_executable(example_gui_simulated_gpu_reduceBlock gui_simulated_gpu_reduceBlo
 target_link_libraries(example_gui_simulated_gpu_reduceBlock PRIVATE stock_market_monte_carlo imgui implot)
 target_include_directories(example_gui_simulated_gpu_reduceBlock PRIVATE "${implot_SOURCE_DIR}")
 
+add_executable(reduce_mean benchmark_reduce_mean.cpp)
+target_link_libraries(reduce_mean PRIVATE stock_market_monte_carlo)
+

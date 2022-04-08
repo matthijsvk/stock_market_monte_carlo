@@ -11,9 +11,18 @@ void update_mean_std(float &mean, float &std, std::vector<float> &means, std::ve
 
   // population variance: https://stats.stackexchange.com/questions/25848/how-to-sum-a-standard-deviation
   // -> average the variances; then you can take square root to get the average standard deviation
-  double sum_var = std::accumulate(variances.begin(), variances.end(), 0.0);
-  double mean_var = sum_var / variances.size();
-  std = float(std::sqrt(mean_var));
+//  double sum_var = std::accumulate(variances.begin(), variances.end(), 0.0);
+//  double mean_var = sum_var / variances.size();
+//  std = float(std::sqrt(mean_var));
+
+  sum = 0;
+  for (int i = 0; i < variances.size(); i++) {
+//    float tmp = v[i] - mean);
+    sum += variances[i];
+  }
+  printf("Sum var: %f\n", sum);
+  float var = sum / variances.size();
+  std = std::sqrt(var);
 }
 
 static double cumulative_normal_standard(double d)

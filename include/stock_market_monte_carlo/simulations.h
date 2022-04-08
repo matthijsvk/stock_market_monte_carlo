@@ -73,3 +73,5 @@ void mc_simulations_gpu_reduceBlock(std::atomic<long> &n_simulations,
                         std::vector<float> &means,
                         std::vector<float> &variances,
                         int n_gpus);
+
+float reduce_mean_gpu(std::vector<float> &vec, long n);
