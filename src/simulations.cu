@@ -14,7 +14,7 @@
 #include "cuda.h"
 
 //#define DEBUG
-#define THREADS_PER_BLOCK 64 //256
+#define THREADS_PER_BLOCK 256
 
 //==================================================================================
 // CUDA helper functions
@@ -109,7 +109,7 @@ __device__ void testRNG(int n) {
 //==================================================================================
 // actual MC gpu kernel
 //==================================================================================
-
+template<int blockSize>
 __global__ void mc_simulations_gpu_kernel(const float *__restrict__ returns,
                                           const int n_returns,
                                           float *__restrict__ totals,
@@ -126,6 +126,10 @@ __global__ void mc_simulations_gpu_kernel(const float *__restrict__ returns,
       bufferReturns[i] = returns[i] * float(0.01);
     }
   }
+//  // entire block loads data from global memory -> for some reason wayyy more registers/thread???
+//  for (int i = threadIdx.x; i < n_returns; i += blockSize) {
+//    bufferReturns[i] = returns[i] * float(0.01);
+//  }
   if (tid >= N) return;
   __syncthreads();
 
@@ -256,13 +260,13 @@ __global__ void compute_sum_kernel(
 
   reduceAdd<blockSize, float>(sdata, threadIdx.x);
   if (threadIdx.x == 0) {
-    arr[offset] = sdata[0];
+    arr[offset] = sdata[0]; // TODO write to blockIdx.x, reduce there?
   }
 }
 
 float reduce_mean_gpu(std::vector<float> &vec, const long n) {
   // over 20x faster than CPU (mean of 1B numbers)
-  const int block_size = 64; //THREADS_PER_BLOCK;
+  const int block_size = 64; //THREADS_PER_BLOCK; // TODO hangs at cudaMalloc with 256 threads/block???
 
   std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
@@ -342,8 +346,14 @@ void mc_simulations_gpu_launcher(std::vector<float> &returns_vec,
                                  const long N,
                                  float initial_value,
                                  const int n_periods) {
-  // initialize data structures | Reserve is cheaper than resize! esp for large arrays
-  totals_vec.resize(N, initial_value);
+  auto begin = std::chrono::steady_clock::now();
+//  // initialize data structures
+  ////-> todo we could do this after kernel is launched! Then we overlap setup time with the GPU transfer/compute time
+  totals_vec.resize(N);
+
+  auto end = std::chrono::steady_clock::now();
+  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  fmt::print("\tsetting totals_vec took {} s!\n", timediff / 1000.0);
   // get pointers b/c GPU can't use std::vectors
   float *totals = &totals_vec[0];
   float *returns = &returns_vec[0];
@@ -362,27 +372,41 @@ void mc_simulations_gpu_launcher(std::vector<float> &returns_vec,
   long memsize_hist_returns = n_returns * sizeof(float);
   long memsize_totals = N * sizeof(float);
 
+  auto begin_GPU = std::chrono::steady_clock::now();
+
   cudaMalloc(&returns_d, memsize_hist_returns);
   cudaMalloc(&totals_d, memsize_totals);
 
   cudaMemcpy(returns_d, returns, memsize_hist_returns, cudaMemcpyHostToDevice);
-  cudaMemcpy(totals_d, totals, memsize_totals, cudaMemcpyHostToDevice);
+//  cudaMemcpy(totals_d, totals, memsize_totals, cudaMemcpyHostToDevice);
+
+  auto end_HtD = std::chrono::steady_clock::now();
+  timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end_HtD - begin_GPU).count();
+  fmt::print("\ttransfer to GPU took {} s!\n", timediff / 1000.0);
 
   // launch kernel!
-  std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-  mc_simulations_gpu_kernel<<<grid, block>>>(returns_d, n_returns, totals_d, N, initial_value, n_periods);
+  auto begin_k = std::chrono::steady_clock::now();
+  mc_simulations_gpu_kernel<block_size><<<grid, block>>>(returns_d, n_returns, totals_d, N, initial_value, n_periods);
+
+  // now initialize CPU vector while we wait for GPU
+//  totals_vec.resize(N, initial_value);
+//  totals_vec.reserve(N); //size(N, initial_value);
+//  float *totals = &totals_vec[0];
+
   cudaDeviceSynchronize();
-  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
-  fmt::print("GPU kernel itself took {} s!\n", timediff / 1000.0);
+  auto end_k = std::chrono::steady_clock::now();
+  timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end_k - begin_k).count();
+  fmt::print("\tGPU kernel itself took {} s!\n", timediff / 1000.0);
 
   cudaMemcpy(totals, totals_d, memsize_totals, cudaMemcpyDeviceToHost);
   cudaFree(returns_d);
   cudaFree(totals_d);
+  auto end_GPU = std::chrono::steady_clock::now();
+  timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end_GPU - end_k).count();
+  fmt::print("\ttransfer to CPU took {} s!\n", timediff / 1000.0);
 
-  std::chrono::steady_clock::time_point end2 = std::chrono::steady_clock::now();
-  auto timediff2 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - begin).count();
-  fmt::print("GPU kernel + transfer to host took {} s!\n", timediff2 / 1000.0);
+  timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end_GPU - begin_GPU).count();
+  fmt::print("Transfer to GPU + kernel + transfer to CPU took {} s!\n", timediff / 1000.0);
 }
 
 void mc_simulations_gpu_reduceBlock_launcher(std::vector<float> &returns_vec,
@@ -503,14 +527,14 @@ void mc_simulations_multi_gpu_launcher_v1(std::vector<float> &returns_vec,
   printf("\n");
   //----------------------
   printf("Launching kernels...\n");
+  const int block_size = THREADS_PER_BLOCK;
   for (int dev = 0; dev < n_gpus; dev++) {
     cudaSetDevice(dev);
     dim3 block, grid;
-    int block_size = THREADS_PER_BLOCK;
     block.x = block_size;
     grid.x = (plan[dev].n + block_size - 1) / block_size;
     printf("\t GPU %d -> block_no: %d, block_size: %d | warps/block: %d \n", dev, grid.x, block.x, block.x / 32);
-    mc_simulations_gpu_kernel<<<grid, block>>>(
+    mc_simulations_gpu_kernel<block_size><<<grid, block>>>(
         plan[dev].returns_d, n_returns, plan[dev].totals_d, plan[dev].n, initial_value, n_periods);
   }
   printf("\n");
@@ -554,48 +578,78 @@ void mc_simulations_multi_gpu_launcher_async(std::vector<float> &returns_vec,
                                              float initial_value,
                                              const int n_periods,
                                              int n_gpus) {
-  // TODO see https://stackoverflow.com/questions/11673154/concurrency-in-cuda-multi-gpu-executions/35010019#35010019
-  // initialize data structures
-  totals_vec.resize(N, initial_value);
+  // based on #5 https://stackoverflow.com/questions/11673154/concurrency-in-cuda-multi-gpu-executions/35010019#35010019
+  auto begin = std::chrono::steady_clock::now();
+  printf("Allocating memory...\n");
+  // we can't use std::vector data as pinned memory :( -> need to allocate with cudaMallocHost and copy to the vector...
   // get pointers b/c GPU can't use std::vectors
-  float *totals = &totals_vec[0];
-  float *returns = &returns_vec[0];
+  float *totals;
+  float *returns;
+  // allocate on host for pinned memory so we can write back asynchronously
+  gpuErrchk(cudaMallocHost(&returns, n_returns * sizeof(float)));
+  gpuErrchk(cudaMallocHost(&totals, N * sizeof(float)));
 
-  //-----------------------
-  printf("Allocating memory...");
+  // must set manually, can't use returns_vec b/c it must be pinned memory...
+  for (int i=0; i<n_returns; i++){
+    returns[i] = returns_vec[i];
+  }
+
   long n_todo = N;
   Plan_v2 plan[n_gpus];
-  for (int dev = 0; dev < n_gpus; dev++) {
-    printf("\tgpu %d", dev);
+  for (int k = 0; k < n_gpus; k++) {
     long n_this_gpu = std::min(n_todo, N / n_gpus);
     n_todo = N - n_this_gpu;
     // allocate memory on the correct GPU device
-    printf("-> will run %ld simulations", n_this_gpu);
-    create_plan_v2(plan[dev], dev, n_this_gpu, n_returns);
+    printf("\t GPU %d -> will run %ld simulations\n", k, n_this_gpu);
+    create_plan_v2(plan[k], k, n_this_gpu, n_returns);
   }
-  printf("\n");
-
-  // allocate on host for pinned memory so we can write back asynchronously
-  gpuErrchk(cudaMallocHost(&returns, n_returns * sizeof(float)));
-  gpuErrchk(cudaMallocHost(&totals, N * sizeof(float)));  // todo how to reuse the already allocated 'totals'??
+  auto end_gpu_setup = std::chrono::steady_clock::now();
+  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end_gpu_setup - begin).count();
+  fmt::print("Setup took {} s!\n", timediff / 1000.0);
 
   dim3 block, grid;
-  int block_size = THREADS_PER_BLOCK;
+  const int block_size = THREADS_PER_BLOCK;
   long n_done = 0;
-  // we're using default CUDA stream, example 5 in
-  //  https://stackoverflow.com/questions/11673154/concurrency-in-cuda-multi-gpu-executions/35010019#35010019
   for (int k = 0; k < n_gpus; k++) {
     gpuErrchk(cudaSetDevice(k));
     gpuErrchk(cudaMemcpyAsync(plan[k].returns_d, returns, n_returns * sizeof(float), cudaMemcpyHostToDevice));
     gpuErrchk(cudaMemcpyAsync(plan[k].totals_d, totals + n_done, plan[k].n * sizeof(float), cudaMemcpyHostToDevice));
     block.x = block_size;
     grid.x = iDivUp(plan[k].n, block_size);
-    mc_simulations_gpu_kernel<<<grid, block>>>(
+    mc_simulations_gpu_kernel<block_size><<<grid, block>>>(
         plan[k].returns_d, n_returns, plan[k].totals_d, plan[k].n, initial_value, n_periods);
+//    fmt::print("Copying {:L} floats to GPU...\n", plan[k].n);
     gpuErrchk(cudaMemcpyAsync(totals + n_done, plan[k].totals_d, plan[k].n * sizeof(float), cudaMemcpyDeviceToHost));
     n_done += plan[k].n;
   }
-  gpuErrchk(cudaDeviceReset());  // TODO does this reset all gpus? what's the duration?
+
+//  // try to overlap with GPU computation. This messes up timing the kernels thuogh, b/c CPU side is slower than GPU even for 1B
+//  totals_vec.resize(N);
+
+  // wait till GPUs are done
+  for (int k =0; k < n_gpus; k++) {
+    gpuErrchk(cudaSetDevice(k));
+    gpuErrchk(cudaDeviceSynchronize());
+    gpuErrchk(cudaFree(plan[k].returns_d));
+    gpuErrchk(cudaFree(plan[k].totals_d));
+  }
+  auto end_k = std::chrono::steady_clock::now();
+  timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end_k - end_gpu_setup).count();
+  fmt::print("Transfer to GPU + kernel + transfer to CPU took {} s!\n", timediff / 1000.0);
+
+  // TODO create a new vector from the array data, then put that in totals_vec using swap https://stackoverflow.com/questions/2236197/what-is-the-easiest-way-to-initialize-a-stdvector-with-hardcoded-elements
+  std::vector<float> totals_vec2(totals, totals + N);
+  std::swap(totals_vec, totals_vec2);
+  //// alternatively, need to do totals_vec.resize(N) and then this:
+//  for (int i=0; i<N; i++){
+//    totals_vec[i] = totals[i];
+//  }
+
+  gpuErrchk(cudaFreeHost(returns));
+  gpuErrchk(cudaFreeHost(totals));
+
+//  gpuErrchk(cudaDeviceReset()); // make sure to deallocate everything everywhere
+  printf("Done!\n");
 }
 
 //==================================================================================
@@ -609,15 +663,16 @@ void mc_simulations_gpu(std::atomic<long> &n_simulations,
                         std::vector<float> &returns,
                         std::vector<float> &totals,
                         const int n_gpus) {
-  //  mc_simulations_multi_gpu_launcher_async(returns, returns.size(), totals, N, initial_capital, n_periods, n_gpus);
-  if (n_gpus == 1) {
-    mc_simulations_gpu_launcher(returns, returns.size(), totals, N, initial_capital, n_periods);
-  } else if (n_gpus > 1) {
+  // TODO multi-gpu-async needs pinned memory, which doesn't work with vectors, so we need to allocate the totals_vec twice
+ // this makes the total duration much longer, though GPU time is the same
     mc_simulations_multi_gpu_launcher_async(returns, returns.size(), totals, N, initial_capital, n_periods, n_gpus);
-  } else {
-    throw std::invalid_argument("INVALID NUMBER OF GPUS SPECIFIED!!");
-  }
-
+//  if (n_gpus == 1) {
+//    mc_simulations_gpu_launcher(returns, returns.size(), totals, N, initial_capital, n_periods);
+//  } else if (n_gpus > 1) {
+//    mc_simulations_multi_gpu_launcher_async(returns, returns.size(), totals, N, initial_capital, n_periods, n_gpus);
+//  } else {
+//    throw std::invalid_argument("INVALID NUMBER OF GPUS SPECIFIED!!");
+//  }
   n_simulations = N;  // TODO increment inside GPU kernel?
   // assert(n_simulations = N); // must be true here
 }

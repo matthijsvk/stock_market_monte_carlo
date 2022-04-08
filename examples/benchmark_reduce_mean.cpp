@@ -17,17 +17,20 @@ int main(int argc, char *argv[]) {
     fmt::print("usage: compute_avg <n>");
     exit(0);
   }
-
+  auto begin_setup = std::chrono::steady_clock::now();
   std::vector<float> vec(n);
   for (int i=0; i<n; i++)
     vec[i] = float(i);
+  auto end_setup = std::chrono::steady_clock::now();
+  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end_setup - begin_setup).count();
+  fmt::print("setup of vector took {} s!\n", timediff / 1000.0);
 
   // verify with CPU computation
   std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
   double sum = std::accumulate(vec.begin(), vec.end(), 0.0);
   float mean_cpu = float(sum) / vec.size();
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+  timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
   fmt::print("CPU took {} s!\n", timediff / 1000.0);
 
   // TODO why does is GPU time reported here so much less than inside reduce_mean_gpu function??? it's just a function call..

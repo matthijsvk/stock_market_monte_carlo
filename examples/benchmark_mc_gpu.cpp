@@ -65,9 +65,7 @@ int main(int argc, char *argv[]) {
   std::atomic<long> n_simulations = 0;
 
   std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
-  mc_simulations_gpu(
-      n_simulations, max_n_simulations, n_periods, initial_capital, historical_returns, final_values, n_gpus);
+  mc_simulations_gpu(n_simulations, max_n_simulations, n_periods, initial_capital, historical_returns, final_values, n_gpus);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
   fmt::print("All {} simulation done in {} s!\n", n_simulations, timediff / 1000.0);
