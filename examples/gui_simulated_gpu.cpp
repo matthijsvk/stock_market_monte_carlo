@@ -383,9 +383,9 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, lo
             ImPlot::PlotHistogram("histogram",
                                   final_values.data(),
                                   final_values.size(),
-                                  200, //ImPlotBin_Sqrt, //Sturges,
-                                  false,
-                                  false);  // cumulative, density
+                                  200); //ImPlotBin_Sqrt, //Sturges,
+                                  // ImPlotHistogramFlags_Cumulativefalse,
+                                  // false);  // cumulative, density
           }
         }
 
@@ -395,7 +395,8 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, lo
 
         // plot horizontal line of desired final amount
         std::vector<float> vec2(n_periods, min_final_amount);
-        ImPlot::PlotLine("MINIMUM", vec2.data(), vec2.size());
+        // ImPlot::SetNextLineStyle(ImVec4(1,1,1,1), 4); // color, thickness
+        ImPlot::PlotLine("TARGET", vec2.data(), vec2.size());
 
         ImPlot::EndPlot();
       }

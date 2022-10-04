@@ -240,7 +240,7 @@ __global__ void mc_simulations_gpu_kernel_reduceBlock(const float *__restrict__ 
     float var = s_totals_var[0] / blockSize;
     totals[blockIdx.x] = mean;
     variances[blockIdx.x] = var;
-    printf("block %3d: \t mean= %10.2f | var=%15.2f\n", blockIdx.x, mean, var);
+    //printf("block %3d: \t mean= %10.2f | var=%15.2f\n", blockIdx.x, mean, var);
   }
 }
 

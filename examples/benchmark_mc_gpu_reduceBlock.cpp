@@ -25,6 +25,11 @@ void update_mean_std(float &mean, float &std, std::vector<float> &means, std::ve
   std = std::sqrt(var);
 }
 
+double normalCDF(double value)
+{
+   return 0.5 * erfc(-value * M_SQRT1_2);
+}
+
 static double cumulative_normal_standard(double d)
 {
   const double       A1 = 0.31938153;
@@ -46,9 +51,9 @@ static double cumulative_normal_standard(double d)
   return cnd;
 }
 
-float cumulative_normal(float x, float mu, float s){
-  // simply move and scaleso we can use standard cumulative normal distribution
-  return cumulative_normal_standard((x-mu)/s);
+float cumulative_normal(float x, float m, float s){
+  // simply move and scale so we can use standard cumulative normal distribution
+  return normalCDF((x-m)/s); //cumulative_normal_standard((x-m)/s);
 }
 
 float normal(float x, float m, float s) {
@@ -61,8 +66,7 @@ long update_count_below_min(float &min_final_amount, float mean, float std, long
   // central limit theorem: totals are normally distributed (for large N)
   // -> estimate count from mean/var
   float prob = cumulative_normal(min_final_amount, mean, std);
-  long count_below_min = n_simulations * prob;
-  return count_below_min;
+  return n_simulations * prob;
 }
 
 int main(int argc, char *argv[]) {
@@ -92,7 +96,7 @@ int main(int argc, char *argv[]) {
 
   mc_simulations_gpu_reduceBlock(
       n_simulations, max_n_simulations, n_periods, initial_capital, historical_returns, means, variances, n_gpus);
-
+  fmt::print("n_simulations: {:d}\n", n_simulations);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
   fmt::print("All {} simulation done in {} s!\n", n_simulations, timediff / 1000.0);
@@ -101,8 +105,12 @@ int main(int argc, char *argv[]) {
   float mean, std;
   update_mean_std(mean, std, means, variances);
   fmt::print("mean: {:.2f} | std: {:.2f} \n", mean, std);
+
+  // TODO the distribution is NOT a symmetrical gaussian, so normalCDF to estimate counts from mean/std isn't correct!
+  // it may be an upper bound on the number of failures
   long count = update_count_below_min(initial_capital, mean, std, max_n_simulations);
-  fmt::print("count_below_min: {:L} ({:4f}%)",count, 100*float(count)/max_n_simulations);
+  fmt::print("count_below {:.1f}: {:L} ({:4f}%) \n", initial_capital, count, 100*float(count)/max_n_simulations);
+  fmt::print("prob below min: {:.3f}% \n", 100 * cumulative_normal(initial_capital, mean, std));
 
   return 0;
 }

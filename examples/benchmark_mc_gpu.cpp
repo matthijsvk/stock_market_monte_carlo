@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
   fmt::print("mean: {:.2f} | std: {:.2f} \n", mean, std);
 
   long count = update_count_below_min(initial_capital, final_values, max_n_simulations);
-  fmt::print("count_below_min: {:L} ({:4f}%)",count, 100*float(count)/max_n_simulations);
+  fmt::print("count_below {:.1f}: {:L} ({:4f}%)", initial_capital, count, 100*float(count)/max_n_simulations);
 
   return 0;
 }

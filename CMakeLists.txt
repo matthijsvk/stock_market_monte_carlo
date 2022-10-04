@@ -70,22 +70,22 @@ if (TCNN_HAS_PARENT)
     set(CMAKE_CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES} PARENT_SCOPE)
 endif ()
 
-#list(APPEND CUDA_NVCC_FLAGS )
-#list(APPEND CUDA_NVCC_FLAGS )
+list(APPEND CUDA_NVCC_FLAGS "--extended-lambda")
+list(APPEND CUDA_NVCC_FLAGS "--expt-relaxed-constexpr") # -Wall -Wextra")
 
 ## for Profiling
-list(APPEND CUDA_NVCC_FLAGS "-lineinfo") # --extended-lambda --expt-relaxed-constexpr -Wall -Wextra")
+list(APPEND CUDA_NVCC_FLAGS "-lineinfo")
 
 ###############################################################################
 # other libraries
 ###############################################################################
 
-FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 8.1.1)
+FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 9.1.0) #8.1.1)
 FetchContent_Declare(csv GIT_REPOSITORY https://github.com/ben-strasser/fast-cpp-csv-parser.git GIT_TAG master)
 
 # Externally provided libraries
-FetchContent_Declare(googletest GIT_REPOSITORY https://github.com/google/googletest.git GIT_TAG release-1.11.0)
-FetchContent_Declare(googlebenchmark GIT_REPOSITORY https://github.com/google/benchmark.git GIT_TAG master)
+FetchContent_Declare(googletest GIT_REPOSITORY https://github.com/google/googletest.git GIT_TAG release-1.12.0)
+FetchContent_Declare(googlebenchmark GIT_REPOSITORY https://github.com/google/benchmark.git GIT_TAG main)
 
 FetchContent_MakeAvailable(
         fmt
@@ -118,14 +118,14 @@ if (NOT TARGET glfw)
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-    FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG 3.3.6)
+    FetchContent_Declare(glfw GIT_REPOSITORY https://github.com/glfw/glfw.git GIT_TAG 3.3.8) 
     FetchContent_MakeAvailable(glfw)
     target_compile_options(glfw PRIVATE -Wno-pedantic -Wno-missing-field-initializers -Wno-unused-parameter)
 endif ()
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 
 # Fetch ImGUI
-FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.86)
+FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.88)
 FetchContent_GetProperties(imgui)
 if (NOT imgui_POPULATED)
     FetchContent_Populate(imgui)
@@ -141,7 +141,7 @@ if (NOT imgui_POPULATED)
 endif ()
 
 # ImPlot
-FetchContent_Declare(implot GIT_REPOSITORY https://github.com/epezent/implot.git GIT_TAG v0.13)
+FetchContent_Declare(implot GIT_REPOSITORY https://github.com/epezent/implot.git GIT_TAG v0.14)
 FetchContent_GetProperties(implot)
 if (NOT implot_POPULATED)
     FetchContent_Populate(implot)

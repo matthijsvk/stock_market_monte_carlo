@@ -22,14 +22,14 @@ C++ side: simulations + visualization with [DearImGui](https://github.com/ocornu
     - `sudo pip install cmake --upgrade`
     - `sudo apt install -y g++-11 && update-alternatives --config g++`
 
-```
+```bash
 sudo apt install libfmt-dev libglfw3-dev
 mkdir build && cd build
 cmake .. -GNinja && ninja && cd ..
 
 # get historical stock data with Python Yahoo-finances
-conda create --name stock_market_monte_carlo python=3.9
-conda activate stock_market_monte_carl
+conda create --name smmc -y python=3.10
+conda activate smmc
 pip install -r python/requirements.txt
 python python/get_data.py get_data_SP500
 

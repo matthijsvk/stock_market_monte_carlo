@@ -444,9 +444,7 @@ int main(int argc, char *argv[]) {
         ImPlot::PlotHistogram("histogram",
                               means.data(),
                               means.size(),
-                              ImPlotBin_Sqrt,  // Sturges,
-                              false,
-                              false);  // cumulative, density
+                              ImPlotBin_Sqrt);  // cumulative, density
       }
 
       ImPlot::EndPlot();

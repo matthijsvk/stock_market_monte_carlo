@@ -407,7 +407,8 @@ int main(int argc, char *argv[]) {
 
       // plot horizontal line of desired final amount
       std::vector<float> vec2(n_periods, min_final_amount);
-      ImPlot::PlotLine("MINIMUM", vec2.data(), vec2.size());
+      ImPlot::SetNextLineStyle(ImVec4(1,1,1,1), 4); // color, thickness
+      ImPlot::PlotLine("TARGET", vec2.data(), vec2.size());
 
       ImPlot::EndPlot();
     }
