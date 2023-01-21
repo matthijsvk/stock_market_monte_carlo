@@ -82,8 +82,8 @@ int main(int argc, char *argv[]) {
     fmt::print("n_periods: {} | max_n_simulations: {}\n", n_periods, max_n_simulations);
   } else {
     fmt::print(
-        "usage: example_gui_simulated <n_gpus> <n_months> <n_simulations>, eg "
-        "example_gui_simulated 1 360 100000");
+        "usage: benchmark_mc_gpu_reduceBlock <n_gpus> <n_months> <n_simulations>, eg "
+        "benchmark_mc_gpu_reduceBlock 1 360 100000");
     exit(0);
   }
 

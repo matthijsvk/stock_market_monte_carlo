@@ -43,6 +43,7 @@ long update_count_below_min(float &min_final_amount, const std::vector<float> &f
 
 int main(int argc, char *argv[]) {
   std::locale::global(std::locale("en_US.UTF-8"));
+  fmt::print("expected arguments: <n_gpus>, <n_periods> <n_simulations>");
   fmt::print("argc: {}\n", argc);
   long max_n_simulations;
   int n_periods, n_gpus;
@@ -54,8 +55,8 @@ int main(int argc, char *argv[]) {
     fmt::print("n_periods: {} | max_n_simulations: {}\n", n_periods, max_n_simulations);
   } else {
     fmt::print(
-        "usage: example_gui_simulated <n_gpus> <n_months> <n_simulations>, eg "
-        "example_gui_simulated 1 360 100000");
+        "usage: benchmark_mc_gpu <n_gpus> <n_months> <n_simulations>, eg "
+        "benchmark_mc_gpu 1 360 100000");
     exit(0);
   }
 

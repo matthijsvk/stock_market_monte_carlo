@@ -115,8 +115,7 @@ void one_simulation_historical(const std::string output_fname,
                                float initial_capital,
                                unsigned int n_periods,
                                std::vector<float> &historical_returns) {
-  std::vector<float> returns =
-      sample_returns_historical(n_periods, historical_returns);
+  std::vector<float> returns = sample_returns_historical(n_periods, historical_returns);
   std::vector<float> values = many_updates(initial_capital, returns, n_periods);
   write_data_file(output_fname, returns, values);
 }
@@ -151,8 +150,7 @@ void mc_simulations_keepdata(std::atomic<long> &n_simulations,
   long n_blocks = std::ceil(max_n_simulations / float(block_size));
 
   // leave 1 core for visualization
-  const int num_cpu_cores =
-      std::max(1, int(std::thread::hardware_concurrency() - 1));
+  const int num_cpu_cores = std::max(1, int(std::thread::hardware_concurrency() - 1));
   fmt::print("number of cpu cores: {}\n", num_cpu_cores);
 
 #pragma omp parallel for schedule(dynamic)                              \

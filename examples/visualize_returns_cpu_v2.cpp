@@ -150,8 +150,8 @@ int main(int argc, char *argv[]) {
                max_n_simulations);
   } else {
     fmt::print(
-        "usage: example_gui_simulated <n_months> <n_simulations>, eg "
-        "example_gui_simulated 360 100000");
+        "usage: visualize_returns_cpu_v2 <n_months> <n_simulations>, eg "
+        "visualize_returns_cpu_v2 360 100000");
     exit(0);
   }
 

@@ -26,9 +26,14 @@ void write_data_file(const std::string fname,
   fmt::print("Writing data to csv file outputs/{}\n", fname);
   std::string dir = "./outputs/";
   std::filesystem::create_directory(dir);
-  std::ofstream outFile(fmt::format("output/{}", fname));
+
+  std::ofstream outFile(fmt::format("{}/{}", dir, fname));
   outFile << "Returns,,";
-  for (const auto &e : returns) outFile << e << ",";
+  for (const auto &e : returns) {
+    outFile << e << ",";
+  }
   outFile << "\nValues,";
-  for (const auto &e : values) outFile << e << ",";
+  for (const auto &e : values) {
+    outFile << e << ",";
+  }
 }

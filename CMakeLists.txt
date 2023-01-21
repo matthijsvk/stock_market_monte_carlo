@@ -80,7 +80,7 @@ list(APPEND CUDA_NVCC_FLAGS "-lineinfo")
 # other libraries
 ###############################################################################
 
-FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 9.1.0) #8.1.1)
+FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt.git GIT_TAG 9.1.0)
 FetchContent_Declare(csv GIT_REPOSITORY https://github.com/ben-strasser/fast-cpp-csv-parser.git GIT_TAG master)
 
 # Externally provided libraries
@@ -152,9 +152,6 @@ if (NOT implot_POPULATED)
     target_compile_definitions(implot PUBLIC IMPLOT_BACKEND_ENABLE_OPENGL3 IMGUI_IMPL_OPENGL_LOADER_GLAD)
     target_compile_options(implot PRIVATE -Wall -Wextra -pedantic -Werror -mavx2 -O2)
 endif ()
-
-
-
 
 ###############################################################################
 # Include files

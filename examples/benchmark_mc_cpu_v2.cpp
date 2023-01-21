@@ -15,28 +15,25 @@ int main(int argc, char *argv[]) {
                max_n_simulations);
   } else {
     fmt::print(
-        "usage: benchmark_mc_cpu <n_months> <n_simulations>, eg "
-        "benchmark_mc_cpu 360 100000");
+        "usage: visualize_returns <n_months> <n_simulations>, eg "
+        "visualize_returns 360 100000");
     exit(0);
   }
 
   float initial_capital = 1000;
   std::vector<float> historical_returns =
       read_historical_returns("data/SP500_monthly_returns.csv");
-  std::vector<std::vector<float>> mc_data(max_n_simulations,
-                                          std::vector<float>(n_periods));
   std::vector<float> final_values(max_n_simulations, initial_capital);
   std::atomic<long> n_simulations = 0;
 
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
 
-  mc_simulations_keepdata(n_simulations,
+  mc_simulations(n_simulations,
                  max_n_simulations,
                  n_periods,
                  initial_capital,
                  historical_returns,
-                 mc_data,
                  final_values);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   auto timediff =

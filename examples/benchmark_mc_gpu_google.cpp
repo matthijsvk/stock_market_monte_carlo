@@ -17,10 +17,12 @@ static void BM_MCGPU(benchmark::State& state) {
   std::vector<float> historical_returns =
       read_historical_returns("data/SP500_monthly_returns.csv");
   std::vector<float> final_values(max_n_simulations, initial_capital);
+  std::vector<float> means, variances;
   std::atomic<long> n_simulations = 0;
 
   for (auto _ : state) {
-    // This code gets timed
+    // // This code gets timed
+
     mc_simulations_gpu(n_simulations,
                        max_n_simulations,
                        n_periods,
@@ -28,6 +30,7 @@ static void BM_MCGPU(benchmark::State& state) {
                        historical_returns,
                        final_values,
                        1);
+
   }
 }
 

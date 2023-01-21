@@ -12,9 +12,19 @@ plt.style.use("seaborn")
 sns.set_theme(style="whitegrid")
 
 
-def plot_many_returns(dir="data/", max_n=1000, pick_random=True, inflation_percent=0.0):
+def plot_many_returns(dir="outputs/", max_n=1000, pick_random=True, inflation_percent=0.0):
+    """ first generate simulations with 'monte_carlo_historical <initial_capital> <n_months> <n_simulations>'
+        then call this script 
+    """
     files = natsorted([f for f in os.listdir(dir) if f.endswith(".csv")])
-    # TODO randomly subsample instead of taking first max_n?
+
+    if len(files) > max_n:
+        print("more simulation files than 'max_n' argument, subsampling!")
+        
+    max_n = min(len(files), max_n)
+    if (max_n > 1000):
+        print("It's recommended to set max_n to <1000, otherwise this script will be very slow")
+
     if pick_random:
         files = random.sample(files, max_n)
     else:
@@ -35,6 +45,7 @@ def plot_many_returns(dir="data/", max_n=1000, pick_random=True, inflation_perce
         df_all = pd.concat([df_all, dfi], axis=1)
 
     last_row = df_all.tail(1)
+    
     mean_val = float(last_row.mean(axis=1))
     max_idx = last_row.idxmax(axis=1)
     max_val = float(last_row.max(axis=1))

@@ -3,6 +3,7 @@ seaborn
 pandas
 tables
 numpy
+scipy
 fire
 natsort
 yfinance

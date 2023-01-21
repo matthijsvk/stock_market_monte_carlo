@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     n = int(std::strtol(argv[1], &end, 10));
     fmt::print("n: {}\n", n);
   } else {
-    fmt::print("usage: visualize_rng <n>>");
+    fmt::print("usage: visualize_distribution <n>>");
     exit(0);
   }
   // TODO preallocate?
@@ -283,7 +283,7 @@ int main(int argc, char *argv[]) {
     // simulations are below this
     ImGui::Indent(0.25 * window_width);
     ImGui::SetNextItemWidth(0.5 * window_width);
-    ImGui::SliderInt("N values?", &n, 0, 10000);
+    ImGui::SliderInt("N values?", &n, 0, 1000);
     ImGui::SetNextItemWidth(0.5 * window_width);
     ImGui::SliderFloat("max?", &maxval, 0, 20);
     ImGui::SetNextItemWidth(0.5 * window_width);
@@ -309,8 +309,8 @@ int main(int argc, char *argv[]) {
       ysc.resize(n);
       ysc2.resize(n);
 
-      float trunc_a = mean - std;
-      float trunc_b = mean + 10000* std;
+      float trunc_a = mean - 5 * std;
+      float trunc_b = mean + 5 * std;
 
       float left = std::max(minval, trunc_a);
       float right = std::min(maxval, trunc_b);
@@ -332,7 +332,7 @@ int main(int argc, char *argv[]) {
       ImPlot::SetupLegend(ImPlotLegendFlags_Outside);
       ImPlot::PlotLine(fmt::format("Normal PDF").c_str(), xs.data(), ys.data(), ys.size());
       ImPlot::PlotLine(fmt::format("Normal CDF").c_str(), xs.data(), ysc.data(), ysc.size());
-      ImPlot::PlotLine(fmt::format("Normal CDF, left trunc mu-std").c_str(), xs.data(), ysc2.data(), ysc2.size());
+      ImPlot::PlotLine(fmt::format("Normal CDF, left trunc mu-5*std").c_str(), xs.data(), ysc2.data(), ysc2.size());
     }
     ImPlot::EndPlot();
 

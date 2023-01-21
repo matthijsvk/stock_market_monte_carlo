@@ -142,8 +142,8 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, lo
       fmt::print("n_periods: {} | max_n_simulations: {}\n", n_periods, max_n_simulations);
     } else {
       fmt::print(
-          "usage: example_gui_simulated <n_gpus> <n_months> <n_simulations>, eg "
-          "example_gui_simulated 1 360 100000");
+          "usage: visualize_returns_gpu <n_gpus> <n_months> <n_simulations>, eg "
+          "visualize_returns_gpu 1 360 100000");
       exit(0);
     }
 
@@ -158,14 +158,14 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, lo
     fmt::print("Number of historical data points from which we can sample: {}\n", historical_returns.size());
 
     // limit max shown for plotting?
-    long max_displayed_plots = 25;
+    int max_displayed_plots = 50;
 
     // buffers to store results
     std::vector<float> final_values(max_n_simulations, initial_capital);
     // just for visualization
     // calculate 10x more than we show, so we can do random sample to indicate
     // calculations are still going on
-    long max_n_visualisation = 10 * max_displayed_plots;
+    long max_n_visualisation = 1000;
     std::vector<float> final_values_visualized(max_n_visualisation, -1);
     std::vector<std::vector<float>> mc_data(max_n_visualisation, std::vector<float>(n_periods + 1));
 
@@ -305,6 +305,10 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, lo
     std::vector<float> quartiles(5, 0);
     float mean = -1, std = -1;
     float max_value_slider = 10000;
+
+    bool show_histogram = 0;
+    std::vector<float> histogram_values(100 * max_n_visualisation);
+
     while (!glfwWindowShouldClose(window)) {
       // Poll and handle events (inputs, window resize, etc.)
       // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to
@@ -339,12 +343,19 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, lo
       ImGui::SetNextItemWidth(0.5 * window_width);
       ImGui::SliderFloat("Target?", &min_final_amount, 0, max_value_slider);
       ImGui::SetNextItemWidth(0.5 * window_width);
+      ImGui::SliderInt("Show N curves", &max_displayed_plots, 0, max_n_visualisation); 
+      ImGui::SetNextItemWidth(0.5 * window_width);
       ImGui::InputFloat("Slider Value",
                         &min_final_amount,
                         max_value_slider / 100,  // step
                         max_value_slider / 10,   // step_fast
                         "%.1f");
       ImGui::Unindent(0.25 * window_width);
+      
+      ImGui::Indent(0.5 * window_width);
+      ImGui::Checkbox("Histogram?", &show_histogram);
+      ImGui::Unindent(0.5 * window_width);
+
 
       // recompute only if something changes
       // todo for GPU code, n_simulations isn't ever correct; only when everything's done
@@ -352,7 +363,7 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, lo
         fmt::print("Update detected! Recomputing statistics... ");
         if (prev_n_simulations != n_simulations) {
           prev_n_simulations = n_simulations;
-          // n_el isn't really accurate...
+          // TODO update_quartiles sorts the vector!
           update_quartiles(quartiles, final_values, final_values.size());
           update_mean_std(mean, std, final_values, final_values.size());
           max_value_slider = 10 * quartiles[3];
@@ -367,36 +378,45 @@ void update_quartiles(std::vector<float> &quartiles, std::vector<float> &vec, lo
 
       // Plot
       if (ImPlot::BeginPlot("My Plot",
-                            ImVec2(-1, height - 200),  // leave some space for text below graph
+                            ImVec2(-1, height - 250),  // leave some space for text below graph
                             ImPlotFlags_NoLegend)) {
         // Limit number for performance & stop changing if all simulations are done
         for (int n_shown = 0; n_shown < max_displayed_plots; n_shown++) {
           if (n_shown >= n_simulations_visualized) break;
           int idx = n_shown;
-          if (n_simulations < max_n_simulations && n_simulations_visualized > max_displayed_plots) {
-            ImPlot::SetupAxes(
-                "Time (Months)", "Value", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_LockMin);
-            idx = int(rng_uniform(0, mc_data.size()));
-            ImPlot::PlotLine(fmt::format("Simulation {}", idx).c_str(), mc_data.at(idx).data(), mc_data.at(idx).size());
+          if (show_histogram){
+              static ImPlotHistogramFlags hist_flags = ImPlotBin_Sturges;// & ImPlotHistogramFlags_NoOutliers; // & ImPlotHistogramFlags_Density;
+              // uniform sampling from (sorted) final_values
+              int num_histogram = 10 * max_displayed_plots;
+              for (int i=0; i<num_histogram; i++){
+                int final_values_idx = i * ((float)final_values.size() / num_histogram);
+                histogram_values[i] = final_values[final_values_idx];
+              }
+              // now plot histogram
+              ImPlot::SetupAxes("Number of simulations", "Value", 
+                ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_LockMin);
+              ImPlot::PlotHistogram("histogram",
+                                  histogram_values.data(),
+                                  num_histogram,
+                                  100, //nb_bins
+                                  hist_flags
+                                  );
           }
           else {
-            ImPlot::PlotHistogram("histogram",
-                                  final_values.data(),
-                                  final_values.size(),
-                                  200); //ImPlotBin_Sqrt, //Sturges,
-                                  // ImPlotHistogramFlags_Cumulativefalse,
-                                  // false);  // cumulative, density
+            ImPlot::SetupAxes("Time (Months)", "Value", 
+                ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_LockMin);
+              idx = n_shown; 
+              ImPlot::PlotLine(fmt::format("Simulation {}", idx).c_str(), mc_data.at(idx).data(), mc_data.at(idx).size());
+
+              // plot zero line
+              std::vector<float> vec1(n_periods, 0);
+              ImPlot::PlotLine("MINIMUM", vec1.data(), vec1.size());
+              // plot horizontal line of desired final amount
+              std::vector<float> vec2(n_periods, min_final_amount);
+              // ImPlot::SetNextLineStyle(ImVec4(1,1,1,1), 4); // color, thickness
+              ImPlot::PlotLine("TARGET", vec2.data(), vec2.size());
           }
         }
-
-        // plot zero line
-        std::vector<float> vec1(n_periods, 0);
-        ImPlot::PlotLine("MINIMUM", vec1.data(), vec1.size());
-
-        // plot horizontal line of desired final amount
-        std::vector<float> vec2(n_periods, min_final_amount);
-        // ImPlot::SetNextLineStyle(ImVec4(1,1,1,1), 4); // color, thickness
-        ImPlot::PlotLine("TARGET", vec2.data(), vec2.size());
 
         ImPlot::EndPlot();
       }

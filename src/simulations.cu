@@ -136,13 +136,15 @@ __global__ void mc_simulations_gpu_kernel(const float *__restrict__ returns,
   // todo Sobol PRNG to avoid shmem bank conflicts?
   // https://github.com/NVIDIA/cuda-samples/tree/2e41896e1b2c7e2699b7b7f6689c107900c233bb/Samples/5_Domain_Specific/SobolQRNG
 
-  // hase tid to get good starting seed
+  // seed with PCG. Pass tid to get good starting seed
   unsigned int prng_state = rand_pcg(tid + 1);
 
   float total = initial_capital;
   int return_idx;
   for (int i = 0; i < n_periods; i++) {
+    // xorshift is very fast PRNG on GPU
     prng_state = xorshift(prng_state);
+    // convert from large ints int back to float in range [0,1)
     return_idx = n_returns * (prng_state * float(2.3283064e-10));  // powf(2, -32));
     total += total * bufferReturns[return_idx];
   }

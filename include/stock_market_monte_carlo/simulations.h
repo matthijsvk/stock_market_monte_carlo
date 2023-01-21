@@ -40,6 +40,11 @@ void monte_carlo_historical(long n,
                             unsigned int n_periods,
                             std::string csv_fpath);
 
+
+//////////////////////////////////////////////////////
+//////////////////////// CPU /////////////////////////
+//////////////////////////////////////////////////////
+
 // stores only final values
 void mc_simulations(std::atomic<long> &n_simulations,
                     long max_n_simulations,
@@ -47,6 +52,7 @@ void mc_simulations(std::atomic<long> &n_simulations,
                     float initial_capital,
                     std::vector<float> &historical_returns,
                     std::vector<float> &final_values);
+                    
 // keeps everything stored in mc_data
 void mc_simulations_keepdata(std::atomic<long> &n_simulations,
                     long max_n_simulations,
@@ -56,7 +62,12 @@ void mc_simulations_keepdata(std::atomic<long> &n_simulations,
                     std::vector<std::vector<float>> &mc_data,
                     std::vector<float> &final_values);
 
-// GPU
+//////////////////////////////////////////////////////
+//////////////////////// GPU /////////////////////////
+//////////////////////////////////////////////////////
+
+float reduce_mean_gpu(std::vector<float> &vec, long n);
+
 void mc_simulations_gpu(std::atomic<long> &n_simulations,
                         long max_n_simulations,
                         int n_periods,
@@ -74,4 +85,3 @@ void mc_simulations_gpu_reduceBlock(std::atomic<long> &n_simulations,
                         std::vector<float> &variances,
                         int n_gpus);
 
-float reduce_mean_gpu(std::vector<float> &vec, long n);
